@@ -1,8 +1,9 @@
 {
   "name": "dynasty-game",
   "version": "1.0.0",
+  "engines": { "node": ">=18" },
   "scripts": {
-    "build": "cd client && npm run build",
-    "start": "npm run build && cd server && node index.js"
+    "build": "npm ci --prefix server && npm ci --prefix client && npm --prefix client run build",
+    "start": "node server/index.js"
   }
 }
