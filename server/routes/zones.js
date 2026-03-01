@@ -159,8 +159,9 @@ router.post('/:id/combat-tick', (req, res) => {
     playerCombat.set(playerId, state);
   }
 
-  const frontEnemy     = state.queue[state.queueIdx];
-  const activeEnemies  = state.queue.slice(state.queueIdx);
+  const frontEnemy    = state.queue[state.queueIdx];
+  // Only alive enemies deal damage — dead AOE victims must not attack the player
+  const activeEnemies = state.queue.slice(state.queueIdx).filter(e => e.currentHp > 0);
 
   // ── player attacks frontmost enemy ──
   const playerAtk  = 2 + player.level * 3 + atkBonus;
@@ -208,31 +209,28 @@ router.post('/:id/combat-tick', (req, res) => {
   let totalKillsInZone, bonusPercent, killsToNextBonus;
   let { level, xp } = player, leveledUp = false;
 
-  if (frontEnemy.currentHp <= 0) {
-    killThisTick = true;
-    killedEnemyName = frontEnemy.name;
+  // Parsed once — used by both the main kill and the AOE sweep below
+  const autoRarities = JSON.parse(player.auto_salvage_rarities || '[]');
+  const xpMult       = 1 + (atkBonus / 100) + (xpBonusPct / 100);
 
-    // ── XP ──
-    const existingRow = db.prepare('SELECT kills FROM player_zone_stats WHERE playerId=? AND zoneId=?').get(playerId, zone.id);
-    const bonusPct   = existingRow ? Math.floor(existingRow.kills / 1000) : 0;
-    const xpMult     = 1 + (atkBonus / 100) + (xpBonusPct / 100);
-    xpGained = Math.round(frontEnemy.xp * xpMult);
-
-    xp += xpGained;
+  // ── helper: award XP + kill count + loot for one killed enemy ──────────────
+  const processKill = (enemy) => {
+    // XP
+    const gained = Math.round(enemy.xp * xpMult);
+    xpGained += gained;
+    xp       += gained;
     while (xp >= xpToNextLevel(level) && level < 100) { xp -= xpToNextLevel(level); level++; leveledUp = true; }
-    db.prepare('UPDATE player SET level=?,xp=? WHERE id=?').run(level, xp, playerId);
 
-    // ── kill count ──
+    // Kill count
     db.prepare(`INSERT INTO player_zone_stats (playerId,zoneId,kills) VALUES (?,?,1) ON CONFLICT(playerId,zoneId) DO UPDATE SET kills=kills+1`).run(playerId, zone.id);
     const killRow = db.prepare('SELECT kills FROM player_zone_stats WHERE playerId=? AND zoneId=?').get(playerId, zone.id);
     totalKillsInZone = killRow.kills;
     bonusPercent     = Math.floor(totalKillsInZone / 1000);
     killsToNextBonus = 1000 - (totalKillsInZone % 1000);
 
-    // ── loot ──
+    // Loot
     const loot = rollLoot(zone.id, level, bonusPercent);
     if (loot) {
-      const autoRarities = JSON.parse(player.auto_salvage_rarities || '[]');
       if (autoRarities.includes(loot.rarity)) {
         const shards = SHARD_VALUES[loot.rarity] || 1;
         db.prepare('UPDATE player SET spirit_shards = spirit_shards + ? WHERE id = ?').run(shards, playerId);
@@ -248,8 +246,15 @@ router.post('/:id/combat-tick', (req, res) => {
         }
       }
     }
+  };
 
-    // ── skill drop (3% chance, only skills not yet learned) ──
+  if (frontEnemy.currentHp <= 0) {
+    killThisTick    = true;
+    killedEnemyName = frontEnemy.name;
+
+    processKill(frontEnemy);
+
+    // ── skill drop (3% chance, only on first kill this tick) ──
     let skillDrop = null;
     if (Math.random() < 0.03) {
       const learnedRows = db.prepare('SELECT skillId FROM player_skills WHERE playerId=?').all(playerId);
@@ -262,15 +267,28 @@ router.post('/:id/combat-tick', (req, res) => {
       }
     }
 
-    // ── advance queue ──
+    // ── advance queue past front enemy ──
     state.queueIdx++;
     if (state.queueIdx >= state.queue.length) {
-      state.queue   = makeEnemyQueue(zone.id, monsterId);
+      state.queue    = makeEnemyQueue(zone.id, monsterId);
       state.queueIdx = 0;
     }
 
+    // ── AOE sweep: process any additional enemies already killed by skill ──
+    // Dead enemies (currentHp <= 0) must not linger at 0 HP — clear them now.
+    while (state.queueIdx < state.queue.length && state.queue[state.queueIdx].currentHp <= 0) {
+      processKill(state.queue[state.queueIdx]);
+      state.queueIdx++;
+    }
+    if (state.queueIdx >= state.queue.length) {
+      state.queue    = makeEnemyQueue(zone.id, monsterId);
+      state.queueIdx = 0;
+    }
+
+    // DB write for level/xp happens once after all kills are processed
+    db.prepare('UPDATE player SET level=?,xp=? WHERE id=?').run(level, xp, playerId);
+
     if (skillDrop) {
-      // attach to outer scope so it's in the response
       Object.assign(state, { _lastSkillDrop: skillDrop });
     }
   }
@@ -279,13 +297,15 @@ router.post('/:id/combat-tick', (req, res) => {
   const skillDropOut = state._lastSkillDrop ?? null;
   if (skillDropOut) delete state._lastSkillDrop;
 
-  // Build enemies array: all currently active (after potential kill/advance)
-  const enemies = state.queue.slice(state.queueIdx).map((e, i) => ({
-    id: e.id, name: e.name,
-    hp: e.currentHp, maxHp: e.hp,
-    level: e.level, atk: e.atk, def: e.def,
-    active: i === 0,
-  }));
+  // Build enemies array — only alive enemies (currentHp > 0) are shown
+  const enemies = state.queue.slice(state.queueIdx)
+    .filter(e => e.currentHp > 0)
+    .map((e, i) => ({
+      id: e.id, name: e.name,
+      hp: e.currentHp, maxHp: e.hp,
+      level: e.level, atk: e.atk, def: e.def,
+      active: i === 0,
+    }));
 
   res.json({
     killThisTick, killedEnemyName, xpGained,
