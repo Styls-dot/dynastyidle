@@ -220,6 +220,16 @@ router.post('/:id/combat-tick', (req, res) => {
     playerId,
   });
 
+  // ── Build skill cooldowns map ──
+  const skillCooldowns = {};
+  for (const sid of activeSkillIds) {
+    const def = SKILL_DEFS[sid];
+    if (!def) continue;
+    const cdKey = `${playerId}:${sid}`;
+    const lastFired = playerSkillCooldown.get(cdKey) || 0;
+    skillCooldowns[sid] = Math.max(0, def.cooldownMs - (now - lastFired));
+  }
+
   // ── Final HP/mana after skill effects ──
   let finalHp   = newHp;
   const finalMana = Math.max(0, newMana - manaSpent);
@@ -345,6 +355,7 @@ router.post('/:id/combat-tick', (req, res) => {
     playerLevel: level, playerXp: xp, xpToNextLevel: xpToNextLevel(level), leveledUp,
     hp: finalHp, mana: finalMana, damagePct: Math.round(damagePct * 10) / 10,
     skillsFired: firedSkills,
+    skillCooldowns,
     hpPotionUsed, manaPotionUsed,
     ...(skillDropOut ? { skillDrop: skillDropOut } : {}),
     ...(killThisTick ? {

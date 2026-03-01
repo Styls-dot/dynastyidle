@@ -5,24 +5,11 @@ const RARITY_COLOR = { common:'#7A6E62', rare:'#2F6B5F', epic:'#6B3A8A', legenda
 const SELL_PRICES  = { common: 5, rare: 15, epic: 50, legendary: 150, mythic: 500 };
 const HP_POTION_COST   = 50;
 const MANA_POTION_COST = 40;
-const POTION_MAX       = 20;
-
-function Stepper({ value, min, max, onChange }) {
-  return (
-    <div className="shop-stepper">
-      <button onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min}>−</button>
-      <span>{value}%</span>
-      <button onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max}>+</button>
-    </div>
-  );
-}
 
 export default function ShopPanel({
   gold, setGold,
   hpPotionCount,   setHpPotionCount,
   manaPotionCount, setManaPotionCount,
-  hpPotionThreshold,   setHpPotionThreshold,
-  manaPotionThreshold, setManaPotionThreshold,
   inventory, onSellItem,
 }) {
   const [busy, setBusy] = useState(false);
@@ -58,16 +45,6 @@ export default function ShopPanel({
     } finally { setBusy(false); }
   }
 
-  async function handleHpThreshold(v) {
-    setHpPotionThreshold(v);
-    try { await api.setPotionSettings({ hpThreshold: v }); } catch (e) { console.error(e); }
-  }
-
-  async function handleManaThreshold(v) {
-    setManaPotionThreshold(v);
-    try { await api.setPotionSettings({ manaThreshold: v }); } catch (e) { console.error(e); }
-  }
-
   const bagItems = inventory.filter(i => !i.equippedSlot);
 
   return (
@@ -91,32 +68,24 @@ export default function ShopPanel({
           <div className="shop-potion-card">
             <div className="shop-potion-name">🍶 HP Potion</div>
             <div className="shop-potion-desc">Restores 50 HP instantly when consumed</div>
-            <div className="shop-potion-stock">{hpPotionCount} / {POTION_MAX} in stock</div>
+            <div className="shop-potion-stock">{hpPotionCount} in bag</div>
             <div className="shop-potion-actions">
-              <button className="shop-buy-btn" disabled={busy || gold < HP_POTION_COST || hpPotionCount >= POTION_MAX}
+              <button className="shop-buy-btn" disabled={busy || gold < HP_POTION_COST}
                 onClick={() => handleBuy('hp', 1)}>×1 — {HP_POTION_COST}⬡</button>
-              <button className="shop-buy-btn" disabled={busy || gold < HP_POTION_COST*5 || hpPotionCount >= POTION_MAX}
+              <button className="shop-buy-btn" disabled={busy || gold < HP_POTION_COST*5}
                 onClick={() => handleBuy('hp', 5)}>×5 — {HP_POTION_COST*5}⬡</button>
-            </div>
-            <div className="shop-threshold-row">
-              <span className="shop-threshold-label">Auto-use below:</span>
-              <Stepper value={hpPotionThreshold} min={1} max={99} onChange={handleHpThreshold} />
             </div>
           </div>
 
           <div className="shop-potion-card">
             <div className="shop-potion-name">💧 Mana Potion</div>
             <div className="shop-potion-desc">Restores 50 mana instantly when consumed</div>
-            <div className="shop-potion-stock">{manaPotionCount} / {POTION_MAX} in stock</div>
+            <div className="shop-potion-stock">{manaPotionCount} in bag</div>
             <div className="shop-potion-actions">
-              <button className="shop-buy-btn" disabled={busy || gold < MANA_POTION_COST || manaPotionCount >= POTION_MAX}
+              <button className="shop-buy-btn" disabled={busy || gold < MANA_POTION_COST}
                 onClick={() => handleBuy('mana', 1)}>×1 — {MANA_POTION_COST}⬡</button>
-              <button className="shop-buy-btn" disabled={busy || gold < MANA_POTION_COST*5 || manaPotionCount >= POTION_MAX}
+              <button className="shop-buy-btn" disabled={busy || gold < MANA_POTION_COST*5}
                 onClick={() => handleBuy('mana', 5)}>×5 — {MANA_POTION_COST*5}⬡</button>
-            </div>
-            <div className="shop-threshold-row">
-              <span className="shop-threshold-label">Auto-use below:</span>
-              <Stepper value={manaPotionThreshold} min={1} max={99} onChange={handleManaThreshold} />
             </div>
           </div>
 

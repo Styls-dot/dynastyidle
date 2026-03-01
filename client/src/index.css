@@ -401,6 +401,36 @@ body {
 .stat-card-value.jade   { color: var(--jade); }
 .stat-card-value.accent { color: var(--gold); }
 
+/* ─── POTION SETTINGS (zone detail) ────────────────────────────────── */
+
+.potion-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+  max-width: 460px;
+}
+.potion-settings-row {
+  background: var(--panel);
+  border: 1px solid var(--border-soft);
+  border-radius: 2px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.potion-settings-name {
+  font-size: 11px;
+  color: var(--text);
+  min-width: 110px;
+}
+.potion-settings-count {
+  font-size: 10px;
+  color: var(--text-muted);
+  flex: 1;
+}
+
 /* ─── KILL BAR ─────────────────────────────────────────────────────── */
 
 .kill-bar-wrap { background: var(--panel); border: 1px solid var(--border); padding: 11px 13px; margin-bottom: 22px; max-width: 460px; border-radius: 2px; }
@@ -1676,6 +1706,14 @@ body {
   font-size: 8px;
   color: var(--text-muted);
   letter-spacing: 1px;
+}
+.skill-cd-remaining {
+  color: var(--accent);
+  font-size: 8px;
+}
+.skill-cd-ready {
+  color: var(--jade);
+  font-size: 8px;
 }
 
 .skill-toggle-btn {

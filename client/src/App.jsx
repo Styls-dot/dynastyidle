@@ -51,6 +51,7 @@ export default function App() {
   const [manaPotionCount,     setManaPotionCount]     = useState(0);
   const [hpPotionThreshold,   setHpPotionThreshold]   = useState(30);
   const [manaPotionThreshold, setManaPotionThreshold] = useState(30);
+  const [skillCooldowns,      setSkillCooldowns]      = useState({});
 
   const activeZoneIdRef        = useRef(null);
   const viewedIdRef            = useRef(null);
@@ -205,6 +206,7 @@ export default function App() {
         setPlayer(prev => prev ? { ...prev, level: tick.playerLevel, xp: tick.playerXp, xpToNextLevel: tick.xpToNextLevel, hp: tick.hp ?? prev.hp, mana: tick.mana ?? prev.mana } : prev);
         if (tick.hpPotionUsed)   setHpPotionCount(p => Math.max(0, p - 1));
         if (tick.manaPotionUsed) setManaPotionCount(p => Math.max(0, p - 1));
+        if (tick.skillCooldowns) setSkillCooldowns(tick.skillCooldowns);
 
         if (tick.recovering) {
           setRecovering(true);
@@ -418,8 +420,6 @@ export default function App() {
               gold={gold} setGold={setGold}
               hpPotionCount={hpPotionCount}   setHpPotionCount={setHpPotionCount}
               manaPotionCount={manaPotionCount} setManaPotionCount={setManaPotionCount}
-              hpPotionThreshold={hpPotionThreshold}   setHpPotionThreshold={setHpPotionThreshold}
-              manaPotionThreshold={manaPotionThreshold} setManaPotionThreshold={setManaPotionThreshold}
               inventory={inventory} onSellItem={loadInventory}
             />
           : view === 'character'
@@ -470,6 +470,13 @@ export default function App() {
                     activeSkillIds={activeSkillIds}
                     onToggleSkill={handleToggleSkill}
                     onUpdateSkillRules={handleUpdateSkillRules}
+                    skillCooldowns={skillCooldowns}
+                    hpPotionCount={hpPotionCount}
+                    manaPotionCount={manaPotionCount}
+                    hpPotionThreshold={hpPotionThreshold}
+                    manaPotionThreshold={manaPotionThreshold}
+                    onHpThresholdChange={async (v) => { setHpPotionThreshold(v); try { await api.setPotionSettings({ hpThreshold: v }); } catch(e) { console.error(e); } }}
+                    onManaThresholdChange={async (v) => { setManaPotionThreshold(v); try { await api.setPotionSettings({ manaThreshold: v }); } catch(e) { console.error(e); } }}
                   />
                   <ZoneActivity zone={zoneDetail} combatLog={combatLog} />
                 </>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import MonsterRoster from './MonsterRoster';
 import CombatDisplay from './CombatDisplay';
+import { api } from '../api';
 
 function RuleStepper({ label, value, min, max, onChange }) {
   return (
@@ -15,7 +16,7 @@ function RuleStepper({ label, value, min, max, onChange }) {
   );
 }
 
-export default function ZoneDetail({ zone, player, monsters, selectedMonsterId, onSelectMonster, onEnterZone, isActiveZone, onStatsUpdate, fighting, lastKill, lastHit, enemies, recovering, recoverySecs, learnedSkills = [], activeSkillIds = [], onToggleSkill, onUpdateSkillRules }) {
+export default function ZoneDetail({ zone, player, monsters, selectedMonsterId, onSelectMonster, onEnterZone, isActiveZone, onStatsUpdate, fighting, lastKill, lastHit, enemies, recovering, recoverySecs, learnedSkills = [], activeSkillIds = [], onToggleSkill, onUpdateSkillRules, skillCooldowns = {}, hpPotionCount = 0, manaPotionCount = 0, hpPotionThreshold = 30, manaPotionThreshold = 30, onHpThresholdChange, onManaThresholdChange }) {
   const [expandedSkillId, setExpandedSkillId] = useState(null);
 
   if (!zone) {
@@ -105,7 +106,13 @@ export default function ZoneDetail({ zone, player, monsters, selectedMonsterId, 
                     <div className="skill-card-body">
                       <div className="skill-card-name">{skill.name}</div>
                       <div className="skill-card-desc">{skill.description}</div>
-                      <div className="skill-card-meta">Cooldown: {skill.cooldownMs / 1000}s</div>
+                      <div className="skill-card-meta">
+                        Cooldown: {skill.cooldownMs / 1000}s
+                        {isActive && skillCooldowns[skill.id] > 0
+                          ? <span className="skill-cd-remaining"> — {(skillCooldowns[skill.id] / 1000).toFixed(1)}s</span>
+                          : isActive && <span className="skill-cd-ready"> — klar</span>
+                        }
+                      </div>
                     </div>
                     <button
                       className={`skill-toggle-btn${isActive ? ' active' : ''}`}
@@ -161,6 +168,33 @@ export default function ZoneDetail({ zone, player, monsters, selectedMonsterId, 
             })}
           </div>
         )}
+
+        {/* Potion settings */}
+        <div className="section-label" style={{ marginTop: 16 }}>Potions</div>
+        <div className="potion-settings">
+          <div className="potion-settings-row">
+            <span className="potion-settings-name">🍶 HP Potions</span>
+            <span className="potion-settings-count">{hpPotionCount} i taske</span>
+            <RuleStepper
+              label="Auto-brug under HP%"
+              value={hpPotionThreshold}
+              min={1}
+              max={99}
+              onChange={onHpThresholdChange}
+            />
+          </div>
+          <div className="potion-settings-row">
+            <span className="potion-settings-name">💧 Mana Potions</span>
+            <span className="potion-settings-count">{manaPotionCount} i taske</span>
+            <RuleStepper
+              label="Auto-brug under MP%"
+              value={manaPotionThreshold}
+              min={1}
+              max={99}
+              onChange={onManaThresholdChange}
+            />
+          </div>
+        </div>
 
         {/* Monster roster */}
         <MonsterRoster

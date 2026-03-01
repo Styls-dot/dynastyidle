@@ -1,5 +1,5 @@
 const express = require('express');
-const { getDb, SELL_PRICES, HP_POTION_COST, MANA_POTION_COST, POTION_RESTORE, POTION_MAX_STACK } = require('../db');
+const { getDb, SELL_PRICES, HP_POTION_COST, MANA_POTION_COST, POTION_RESTORE } = require('../db');
 
 const router = express.Router();
 
@@ -19,7 +19,6 @@ router.get('/info', (req, res) => {
     hpPotionCost:       HP_POTION_COST,
     manaPotionCost:     MANA_POTION_COST,
     potionRestore:      POTION_RESTORE,
-    potionMaxStack:     POTION_MAX_STACK,
     sellPrices:         SELL_PRICES,
   });
 });
@@ -33,24 +32,20 @@ router.post('/buy', (req, res) => {
 
   if (type !== 'hp' && type !== 'mana') return res.status(400).json({ error: 'type must be hp or mana' });
 
-  const player  = db.prepare('SELECT gold, hp_potion_count, mana_potion_count FROM player WHERE id=?').get(playerId);
-  const cost    = (type === 'hp' ? HP_POTION_COST : MANA_POTION_COST) * qty;
-  const current = type === 'hp' ? (player.hp_potion_count ?? 0) : (player.mana_potion_count ?? 0);
+  const player = db.prepare('SELECT gold, hp_potion_count, mana_potion_count FROM player WHERE id=?').get(playerId);
+  const cost   = (type === 'hp' ? HP_POTION_COST : MANA_POTION_COST) * qty;
 
   if ((player.gold ?? 0) < cost) return res.status(400).json({ error: 'Not enough gold' });
-  const canBuy = Math.min(qty, POTION_MAX_STACK - current);
-  if (canBuy <= 0) return res.status(400).json({ error: 'Potion stack is full' });
 
-  const actualCost = (type === 'hp' ? HP_POTION_COST : MANA_POTION_COST) * canBuy;
   const col = type === 'hp' ? 'hp_potion_count' : 'mana_potion_count';
-  db.prepare(`UPDATE player SET gold = gold - ?, ${col} = ${col} + ? WHERE id=?`).run(actualCost, canBuy, playerId);
+  db.prepare(`UPDATE player SET gold = gold - ?, ${col} = ${col} + ? WHERE id=?`).run(cost, qty, playerId);
 
   const updated = db.prepare('SELECT gold, hp_potion_count, mana_potion_count FROM player WHERE id=?').get(playerId);
   res.json({
     gold:            updated.gold,
     hpPotionCount:   updated.hp_potion_count,
     manaPotionCount: updated.mana_potion_count,
-    bought:          canBuy,
+    bought:          qty,
   });
 });
 
