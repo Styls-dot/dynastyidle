@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { api, getPlayerId } from './api';
+import { api, isLoggedIn, clearToken, setToken } from './api';
+import AuthScreen    from './components/AuthScreen';
 import PlayerBar      from './components/PlayerBar';
 import ZoneList       from './components/ZoneList';
 import ZoneDetail     from './components/ZoneDetail';
@@ -14,6 +15,13 @@ const POLL_ZONE_MS   = 15_000;
 const MAX_LOG        = 40;
 
 export default function App() {
+  // ── auth state ────────────────────────────────────────────────────────────
+  const [authReady,       setAuthReady]       = useState(false);
+  const [loggedIn,        setLoggedIn]        = useState(false);
+  const [username,        setUsername]        = useState('');
+  const [offlineProgress, setOfflineProgress] = useState(null);
+
+  // ── game state ────────────────────────────────────────────────────────────
   const [player,        setPlayer]        = useState(null);
   const [zones,         setZones]         = useState([]);
   const [viewedId,      setViewedId]      = useState(null);
@@ -35,6 +43,8 @@ export default function App() {
   const [selectedMonsterId,   setSelectedMonsterId]   = useState(null);
   const [enemies,             setEnemies]             = useState([]);
   const [lastHit,             setLastHit]             = useState({ ts: 0, damagePct: 0 });
+  const [learnedSkills,       setLearnedSkills]       = useState([]);
+  const [activeSkillId,       setActiveSkillId]       = useState(null);
 
   const activeZoneIdRef        = useRef(null);
   const viewedIdRef            = useRef(null);
@@ -42,6 +52,47 @@ export default function App() {
   activeZoneIdRef.current      = activeZoneId;
   viewedIdRef.current          = viewedId;
   selectedMonsterIdRef.current = selectedMonsterId;
+
+  // ── validate token on mount ───────────────────────────────────────────────
+  useEffect(() => {
+    if (!isLoggedIn()) { setAuthReady(true); return; }
+    api.me()
+      .then(data => {
+        setUsername(data.username);
+        setLoggedIn(true);
+        setAuthReady(true);
+      })
+      .catch(() => {
+        clearToken();
+        setAuthReady(true);
+      });
+  }, []);
+
+  // ── handle successful auth (login or register) ────────────────────────────
+  function handleAuth(data) {
+    setToken(data.token);
+    setUsername(data.username);
+    if (data.offlineProgress) setOfflineProgress(data.offlineProgress);
+    setLoggedIn(true);
+  }
+
+  // ── logout ────────────────────────────────────────────────────────────────
+  function handleLogout() {
+    clearToken();
+    setLoggedIn(false);
+    setUsername('');
+    setPlayer(null);
+    setZones([]);
+    setActiveZoneId(null);
+    setViewedId(null);
+    setZoneDetail(null);
+    setCombatLog([]);
+    setInventory([]);
+    setSpiritShards(0);
+    setOfflineProgress(null);
+    setLearnedSkills([]);
+    setActiveSkillId(null);
+  }
 
   // ── recovery countdown ────────────────────────────────────────────────────
   useEffect(() => {
@@ -67,7 +118,8 @@ export default function App() {
         setRecovering(true);
         setRecoveryEnd(p.recoveryUntil);
       }
-    } catch (e) { console.error(e); }
+      return p;
+    } catch (e) { console.error(e); return null; }
   }, []);
 
   // ── load inventory ────────────────────────────────────────────────────────
@@ -75,7 +127,23 @@ export default function App() {
     try { setInventory(await api.getInventory()); } catch (e) { console.error(e); }
   }, []);
 
-  useEffect(() => { loadPlayer(); loadInventory(); }, [loadPlayer, loadInventory]);
+  // ── load skills ───────────────────────────────────────────────────────────
+  const loadSkills = useCallback(async () => {
+    try {
+      const { skills, activeSkillId: aid } = await api.getSkills();
+      setLearnedSkills(skills);
+      setActiveSkillId(aid);
+    } catch (e) { console.error(e); }
+  }, []);
+
+  useEffect(() => {
+    if (!loggedIn) return;
+    loadPlayer().then(p => {
+      if (p?.currentZoneId) handleEnterZone(p.currentZoneId);
+    });
+    loadInventory();
+    loadSkills();
+  }, [loggedIn, loadPlayer, loadInventory, loadSkills]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── zone list ─────────────────────────────────────────────────────────────
   const loadZones = useCallback(async () => {
@@ -83,10 +151,11 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!loggedIn) return;
     loadZones();
     const t = setInterval(loadZones, POLL_ZONES_MS);
     return () => clearInterval(t);
-  }, [loadZones]);
+  }, [loggedIn, loadZones]);
 
   // ── zone detail (follows viewed zone) ────────────────────────────────────
   const loadDetail = useCallback(async (id) => {
@@ -139,11 +208,27 @@ export default function App() {
 
         setRecovering(false);
 
-        // Always update enemy group and per-tick damage float
         if (tick.enemies) setEnemies(tick.enemies);
         setLastHit({ ts: Date.now(), damagePct: tick.damagePct ?? 0 });
 
-        // Only process kills when one happens
+        // Skill fired this tick
+        if (tick.skillFired) {
+          setCombatLog(prev => [{
+            id: crypto.randomUUID(), ts: Date.now(), type: 'skill-fire',
+            skillName: tick.skillFired.name, targetsHit: tick.skillFired.targetsHit,
+          }, ...prev].slice(0, MAX_LOG));
+        }
+
+        // Skill drop this tick
+        if (tick.skillDrop) {
+          const sd = tick.skillDrop;
+          setLearnedSkills(prev => prev.some(s => s.id === sd.skillId) ? prev : [...prev, { ...sd, id: sd.skillId }]);
+          setCombatLog(prev => [{
+            id: crypto.randomUUID(), ts: Date.now(), type: 'skill-drop',
+            skillName: sd.name,
+          }, ...prev].slice(0, MAX_LOG));
+        }
+
         if (tick.killThisTick) {
           const killEntry = {
             id: crypto.randomUUID(), ts: Date.now(), type: 'kill',
@@ -156,7 +241,6 @@ export default function App() {
 
           const newEntries = [killEntry];
 
-          // Loot log + inventory
           if (tick.lootDrop) {
             const { lootDrop: l } = tick;
             newEntries.unshift({
@@ -166,7 +250,6 @@ export default function App() {
             setInventory(prev => [{ ...l, equippedSlot: null, obtainedAt: Date.now(), plus_level: 0 }, ...prev]);
           }
 
-          // Auto-salvaged loot
           if (tick.autoSalvaged) {
             const s = tick.autoSalvaged;
             setSpiritShards(tick.spiritShards);
@@ -179,7 +262,6 @@ export default function App() {
 
           setCombatLog(prev => [...newEntries, ...prev].slice(0, MAX_LOG));
 
-          // Sync zone stats — only update detail panel if viewing the active zone
           const zoneStats = { kills: tick.totalKillsInZone, bonusPercent: tick.bonusPercent, killsToNextBonus: tick.killsToNextBonus };
           if (viewedIdRef.current === zoneId) {
             setZoneDetail(prev => prev ? { ...prev, playerStats: zoneStats } : prev);
@@ -226,22 +308,66 @@ export default function App() {
     } catch (e) { console.error(e); }
   }
 
+  async function handleToggleSkill(skillId) {
+    const newId = activeSkillId === skillId ? null : skillId;
+    setActiveSkillId(newId);
+    try { await api.setActiveSkill(newId); } catch (e) { console.error(e); }
+  }
+
+  async function handleUpdateSkillRules(skillId, rules) {
+    setLearnedSkills(prev => prev.map(s => s.id === skillId ? { ...s, rules } : s));
+    try { await api.updateSkillRules(skillId, rules); } catch (e) { console.error(e); }
+  }
+
   function handleStatsUpdate(newStats) {
     setZoneDetail(prev => prev ? { ...prev, playerStats: newStats } : prev);
     setZones(prev => prev.map(z => z.id === viewedId ? { ...z, playerStats: newStats } : z));
   }
 
+  // ── render ────────────────────────────────────────────────────────────────
+  if (!authReady) {
+    return <div className="auth-loading">Loading…</div>;
+  }
+
+  if (!loggedIn) {
+    return <AuthScreen onAuth={handleAuth} />;
+  }
+
   const equippedCount = inventory.filter(i => i.equippedSlot).length;
   const bagCount      = inventory.filter(i => !i.equippedSlot).length;
-  const shortId       = getPlayerId().slice(0, 8);
   const lvl           = player?.level ?? 1;
 
   return (
     <div className="app">
+      {/* ── Offline progress popup ── */}
+      {offlineProgress && (
+        <div className="offline-overlay">
+          <div className="offline-panel">
+            <div className="offline-title">Welcome Back</div>
+            <div className="offline-body">
+              While you were away ({formatDuration(offlineProgress.durationMs)}):
+            </div>
+            <ul className="offline-list">
+              <li>+{offlineProgress.xpGained.toLocaleString()} XP</li>
+              <li>{offlineProgress.kills.toLocaleString()} fjender besejret</li>
+              {offlineProgress.levelUps > 0 && <li>{offlineProgress.levelUps} level-up{offlineProgress.levelUps > 1 ? 's' : ''}!</li>}
+              {offlineProgress.spiritShardsGained > 0 && <li>+{offlineProgress.spiritShardsGained} spirit shards</li>}
+              {offlineProgress.lootItems.length > 0 && <li>{offlineProgress.lootItems.length} item{offlineProgress.lootItems.length > 1 ? 's' : ''} found</li>}
+            </ul>
+            <button className="offline-dismiss" onClick={() => {
+              setOfflineProgress(null);
+              // Refresh inventory and player after offline loot was applied
+              loadInventory();
+              loadPlayer();
+            }}>Continue</button>
+          </div>
+        </div>
+      )}
+
       <div className="topbar">
         <span className="topbar-title">Dynasty Idle</span>
         <span className="topbar-sep">·</span>
-        <span className="topbar-id">id: {shortId}</span>
+        <span className="topbar-id">&#128100; {username}</span>
         <span className="topbar-sep">·</span>
         <button className={`nav-tab${view === 'zones'     ? ' active' : ''}`} onClick={() => setView('zones')}>ZONES</button>
         <button className={`nav-tab${view === 'character' ? ' active' : ''}`} onClick={() => setView('character')}>CHARACTER</button>
@@ -251,6 +377,7 @@ export default function App() {
           BAG ({bagCount})
           {equippedCount > 0 && <span className="equip-badge">{equippedCount} eq</span>}
         </button>
+        <button className="btn-logout" onClick={handleLogout} title="Log out">Log out</button>
       </div>
 
       <PlayerBar
@@ -305,6 +432,10 @@ export default function App() {
                     enemies={enemies}
                     recovering={recovering}
                     recoverySecs={recoverySecs}
+                    learnedSkills={learnedSkills}
+                    activeSkillId={activeSkillId}
+                    onToggleSkill={handleToggleSkill}
+                    onUpdateSkillRules={handleUpdateSkillRules}
                   />
                   <ZoneActivity zone={zoneDetail} combatLog={combatLog} />
                 </>
@@ -328,4 +459,12 @@ export default function App() {
       )}
     </div>
   );
+}
+
+function formatDuration(ms) {
+  const totalSecs = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSecs / 3600);
+  const mins  = Math.floor((totalSecs % 3600) / 60);
+  if (hours > 0) return `${hours}t ${mins}m`;
+  return `${mins}m`;
 }

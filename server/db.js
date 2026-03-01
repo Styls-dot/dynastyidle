@@ -17,6 +17,15 @@ function initDb() {
   const db = getDb();
 
   db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id            TEXT PRIMARY KEY,
+      username      TEXT NOT NULL UNIQUE,
+      email         TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      created_at    INTEGER NOT NULL,
+      last_login_at INTEGER NOT NULL DEFAULT 0
+    );
+
     CREATE TABLE IF NOT EXISTS zones (
       id          TEXT PRIMARY KEY,
       name        TEXT NOT NULL,
@@ -57,6 +66,13 @@ function initDb() {
       message   TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS player_skills (
+      playerId   TEXT NOT NULL,
+      skillId    TEXT NOT NULL,
+      learned_at INTEGER NOT NULL,
+      PRIMARY KEY (playerId, skillId)
+    );
+
     CREATE TABLE IF NOT EXISTS player_inventory (
       id           TEXT PRIMARY KEY,
       playerId     TEXT NOT NULL,
@@ -79,6 +95,11 @@ function initDb() {
   safeAlter(`ALTER TABLE player ADD COLUMN spirit_shards          INTEGER NOT NULL DEFAULT 0`);
   safeAlter(`ALTER TABLE player ADD COLUMN auto_salvage_rarities  TEXT    NOT NULL DEFAULT '[]'`);
   safeAlter(`ALTER TABLE player_inventory ADD COLUMN plus_level   INTEGER NOT NULL DEFAULT 0`);
+  safeAlter(`ALTER TABLE player ADD COLUMN user_id TEXT`);
+  safeAlter(`ALTER TABLE player ADD COLUMN last_active_at INTEGER NOT NULL DEFAULT 0`);
+  safeAlter(`ALTER TABLE player ADD COLUMN last_monster_id TEXT`);
+  safeAlter(`ALTER TABLE player ADD COLUMN active_skill_id TEXT`);
+  safeAlter(`ALTER TABLE player_skills ADD COLUMN rules TEXT NOT NULL DEFAULT '{}'`);
 
   const { c } = db.prepare('SELECT COUNT(*) as c FROM zones').get();
   if (c === 0) seedZones(db);

@@ -10,8 +10,8 @@ function parseItems(rows) {
 // GET /api/inventory
 router.get('/', (req, res) => {
   const db = getDb();
-  const playerId = req.headers['x-player-id'];
-  if (!playerId) return res.status(400).json({ error: 'x-player-id required' });
+  const playerId = req.playerId;
+  if (!playerId) return res.status(400).json({ error: 'Not authenticated' });
   const items = db.prepare('SELECT * FROM player_inventory WHERE playerId=? ORDER BY obtainedAt DESC').all(playerId);
   res.json(parseItems(items));
 });
@@ -19,8 +19,8 @@ router.get('/', (req, res) => {
 // POST /api/inventory/bulk-salvage  — must be defined before /:itemId routes
 router.post('/bulk-salvage', (req, res) => {
   const db = getDb();
-  const playerId = req.headers['x-player-id'];
-  if (!playerId) return res.status(400).json({ error: 'x-player-id required' });
+  const playerId = req.playerId;
+  if (!playerId) return res.status(400).json({ error: 'Not authenticated' });
   const { rarities } = req.body;
   if (!Array.isArray(rarities) || rarities.length === 0)
     return res.status(400).json({ error: 'rarities required' });
@@ -43,8 +43,8 @@ router.post('/bulk-salvage', (req, res) => {
 // PATCH /api/inventory/settings  — auto-salvage rarities preference
 router.patch('/settings', (req, res) => {
   const db = getDb();
-  const playerId = req.headers['x-player-id'];
-  if (!playerId) return res.status(400).json({ error: 'x-player-id required' });
+  const playerId = req.playerId;
+  if (!playerId) return res.status(400).json({ error: 'Not authenticated' });
   const { autoSalvageRarities } = req.body;
   if (!Array.isArray(autoSalvageRarities))
     return res.status(400).json({ error: 'autoSalvageRarities must be array' });
@@ -56,7 +56,7 @@ router.patch('/settings', (req, res) => {
 // POST /api/inventory/:itemId/equip  body: { slot }
 router.post('/:itemId/equip', (req, res) => {
   const db = getDb();
-  const playerId = req.headers['x-player-id'];
+  const playerId = req.playerId;
   const { itemId } = req.params;
   const { slot } = req.body;
   const item = db.prepare('SELECT * FROM player_inventory WHERE id=? AND playerId=?').get(itemId, playerId);
@@ -73,9 +73,9 @@ router.post('/:itemId/equip', (req, res) => {
 // POST /api/inventory/:itemId/salvage
 router.post('/:itemId/salvage', (req, res) => {
   const db = getDb();
-  const playerId = req.headers['x-player-id'];
+  const playerId = req.playerId;
   const { itemId } = req.params;
-  if (!playerId) return res.status(400).json({ error: 'x-player-id required' });
+  if (!playerId) return res.status(400).json({ error: 'Not authenticated' });
   const item = db.prepare('SELECT * FROM player_inventory WHERE id=? AND playerId=?').get(itemId, playerId);
   if (!item)            return res.status(404).json({ error: 'Item not found' });
   if (item.equippedSlot) return res.status(400).json({ error: 'Cannot salvage equipped item' });
@@ -89,9 +89,9 @@ router.post('/:itemId/salvage', (req, res) => {
 // POST /api/inventory/:itemId/enhance
 router.post('/:itemId/enhance', (req, res) => {
   const db = getDb();
-  const playerId = req.headers['x-player-id'];
+  const playerId = req.playerId;
   const { itemId } = req.params;
-  if (!playerId) return res.status(400).json({ error: 'x-player-id required' });
+  if (!playerId) return res.status(400).json({ error: 'Not authenticated' });
   const item = db.prepare('SELECT * FROM player_inventory WHERE id=? AND playerId=?').get(itemId, playerId);
   if (!item) return res.status(404).json({ error: 'Item not found' });
   const currentPlus = item.plus_level || 0;
@@ -111,7 +111,7 @@ router.post('/:itemId/enhance', (req, res) => {
 // DELETE /api/inventory/:itemId
 router.delete('/:itemId', (req, res) => {
   const db = getDb();
-  const playerId = req.headers['x-player-id'];
+  const playerId = req.playerId;
   db.prepare('DELETE FROM player_inventory WHERE id=? AND playerId=?').run(req.params.itemId, playerId);
   res.json({ ok: true });
 });

@@ -1343,11 +1343,6 @@ body {
   box-shadow: 0 0 8px rgba(179, 58, 58, 0.15);
 }
 
-/* Waiting: dimmed */
-.cc-ec-waiting {
-  opacity: 0.5;
-  filter: grayscale(0.25);
-}
 
 /* Enemy art — expands vertically to fill card, SVG scales to fit */
 .cc-e-art {
@@ -1509,3 +1504,408 @@ body {
 ::-webkit-scrollbar-track  { background: var(--bg); }
 ::-webkit-scrollbar-thumb  { background: var(--border); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+
+/* ─── SKILLS ───────────────────────────────────────────────────────── */
+
+.skill-empty {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--text-muted);
+  padding: 6px 0 14px;
+}
+
+.skill-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.skill-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1.5px solid var(--border-soft);
+  border-radius: 6px;
+  padding: 10px 12px;
+  transition: border-color 0.15s;
+}
+
+.skill-card-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.skill-card-active {
+  border-color: var(--jade);
+  background: var(--jade-bg);
+}
+
+.skill-conditions {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.skill-conditions-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.skill-cond-summary {
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+
+.skill-cond-toggle {
+  flex-shrink: 0;
+  font-family: 'Cinzel', serif;
+  font-size: 8px;
+  letter-spacing: 1px;
+  padding: 3px 7px;
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s;
+}
+.skill-cond-toggle:hover { border-color: var(--gold); color: var(--gold); }
+.skill-cond-toggle.open  { border-color: var(--jade); color: var(--jade); }
+
+.skill-rules {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.skill-rules-title {
+  font-family: 'Cinzel', serif;
+  font-size: 8px;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.skill-rule-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.skill-rule-label {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.skill-rule-stepper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.skill-rule-stepper button {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.1s, color 0.1s;
+}
+
+.skill-rule-stepper button:hover:not(:disabled) { border-color: var(--jade); color: var(--jade); }
+.skill-rule-stepper button:disabled { opacity: 0.3; cursor: default; }
+
+.skill-rule-val {
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  min-width: 28px;
+  text-align: center;
+}
+
+.skill-card-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+  width: 28px;
+  text-align: center;
+}
+
+.skill-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.skill-card-name {
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+.skill-card-desc {
+  font-size: 10px;
+  color: var(--text-dim);
+  line-height: 1.4;
+  margin-bottom: 3px;
+}
+
+.skill-card-meta {
+  font-family: 'Cinzel', serif;
+  font-size: 8px;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+}
+
+.skill-toggle-btn {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  border: 1.5px solid var(--border);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+
+.skill-toggle-btn:hover  { border-color: var(--jade); color: var(--jade); }
+.skill-toggle-btn.active { border-color: var(--jade); color: var(--jade); background: var(--jade-bg); }
+
+/* Skill log entries */
+.event-skill-drop { color: var(--gold); font-weight: 600; }
+.event-skill-fire { color: var(--jade); }
+
+/* ─── AUTH SCREEN ──────────────────────────────────────────────────── */
+
+.auth-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  font-family: 'Cinzel', serif;
+  font-size: 13px;
+  letter-spacing: 3px;
+  color: var(--text-muted);
+}
+
+.auth-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: var(--bg);
+}
+
+.auth-panel {
+  width: 380px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--jade);
+  border-radius: 4px;
+  padding: 36px 32px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.auth-title {
+  font-family: 'Cinzel', serif;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 4px;
+  text-align: center;
+  margin-bottom: 2px;
+}
+
+.auth-subtitle {
+  font-family: 'Cinzel', serif;
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--text-muted);
+  text-align: center;
+  margin-bottom: 18px;
+  text-transform: uppercase;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.auth-input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 9px 12px;
+  font-family: 'Noto Serif', Georgia, serif;
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+  transition: border-color .15s;
+  width: 100%;
+}
+
+.auth-input:focus { border-color: var(--jade); }
+.auth-input::placeholder { color: var(--text-muted); }
+
+.auth-btn {
+  margin-top: 4px;
+  padding: 10px;
+  background: var(--jade);
+  border: none;
+  border-radius: 2px;
+  color: #F5F1E8;
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  cursor: pointer;
+  transition: background .15s;
+}
+
+.auth-btn:hover:not(:disabled) { background: var(--jade-dim); }
+.auth-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.auth-error {
+  font-size: 11px;
+  color: var(--accent);
+  text-align: center;
+  padding: 4px 0;
+}
+
+.auth-toggle {
+  margin-top: 14px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.auth-toggle button {
+  background: none;
+  border: none;
+  color: var(--jade);
+  font-family: 'Noto Serif', Georgia, serif;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.auth-toggle button:hover { color: var(--jade-dim); }
+
+/* ─── LOGOUT BUTTON ────────────────────────────────────────────────── */
+
+.btn-logout {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 3px 10px;
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: border-color .15s, color .15s;
+}
+
+.btn-logout:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ─── OFFLINE PROGRESS POPUP ───────────────────────────────────────── */
+
+.offline-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(28, 24, 15, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.offline-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--gold);
+  border-radius: 4px;
+  padding: 30px 32px 26px;
+  width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.offline-title {
+  font-family: 'Cinzel', serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--gold);
+  letter-spacing: 2px;
+  text-align: center;
+}
+
+.offline-body {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.offline-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 0;
+  margin: 0;
+}
+
+.offline-list li {
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  color: var(--text);
+  text-align: center;
+  letter-spacing: 0.5px;
+}
+
+.offline-dismiss {
+  margin-top: 8px;
+  padding: 9px;
+  background: var(--jade);
+  border: none;
+  border-radius: 2px;
+  color: #F5F1E8;
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  cursor: pointer;
+  transition: background .15s;
+  width: 100%;
+}
+
+.offline-dismiss:hover { background: var(--jade-dim); }

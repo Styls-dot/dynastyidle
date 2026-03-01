@@ -12,8 +12,8 @@ function ensurePlayer(db, playerId) {
 // GET /api/player
 router.get('/player', (req, res) => {
   const db = getDb();
-  const playerId = req.headers['x-player-id'];
-  if (!playerId) return res.status(400).json({ error: 'x-player-id required' });
+  const playerId = req.playerId;
+  if (!playerId) return res.status(400).json({ error: 'Not authenticated' });
 
   ensurePlayer(db, playerId);
   const p        = db.prepare('SELECT id,level,xp,hp,recoveryUntil,spirit_shards,auto_salvage_rarities FROM player WHERE id=?').get(playerId);
@@ -35,8 +35,9 @@ router.get('/player', (req, res) => {
 // POST /api/heartbeat
 router.post('/heartbeat', (req, res) => {
   const db = getDb();
-  const { playerId, zoneId } = req.body;
-  if (!playerId || !zoneId) return res.status(400).json({ error: 'playerId and zoneId required' });
+  const playerId = req.playerId;
+  const { zoneId } = req.body;
+  if (!playerId || !zoneId) return res.status(400).json({ error: 'zoneId required' });
 
   ensurePlayer(db, playerId);
   db.prepare(`INSERT INTO player_presence (playerId,zoneId,lastSeen) VALUES (?,?,?) ON CONFLICT(playerId) DO UPDATE SET zoneId=excluded.zoneId,lastSeen=excluded.lastSeen`).run(playerId, zoneId, Date.now());
@@ -47,8 +48,9 @@ router.post('/heartbeat', (req, res) => {
 router.post('/debug/zones/:id/add-kills', (req, res) => {
   const db = getDb();
   const zoneId = req.params.id;
-  const { playerId, amount = 100 } = req.body;
-  if (!playerId) return res.status(400).json({ error: 'playerId required' });
+  const playerId = req.playerId;
+  const { amount = 100 } = req.body;
+  if (!playerId) return res.status(400).json({ error: 'Not authenticated' });
 
   ensurePlayer(db, playerId);
   db.prepare(`INSERT INTO player_zone_stats (playerId,zoneId,kills) VALUES (?,?,?) ON CONFLICT(playerId,zoneId) DO UPDATE SET kills=kills+excluded.kills`).run(playerId, zoneId, amount);

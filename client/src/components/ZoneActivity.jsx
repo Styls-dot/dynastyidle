@@ -36,7 +36,15 @@ export default function ZoneActivity({ zone, combatLog }) {
           combatLog.map(entry => (
             <div key={entry.id} className="event-item">
               <div className="event-time">{relTime(entry.ts)}</div>
-              {entry.type === 'loot' ? (
+              {entry.type === 'skill-drop' ? (
+                <div className="event-msg event-skill-drop">
+                  ✦ Learned: <strong>{entry.skillName}</strong>
+                </div>
+              ) : entry.type === 'skill-fire' ? (
+                <div className="event-msg event-skill-fire">
+                  🌀 {entry.skillName} — hit {entry.targetsHit} target{entry.targetsHit !== 1 ? 's' : ''}
+                </div>
+              ) : entry.type === 'loot' ? (
                 <div className="event-msg" style={{ color: RARITY_COLOR[entry.rarity] || RARITY_COLOR.common }}>
                   {entry.rarity.toUpperCase()} &mdash; {entry.itemName}
                   {entry.autoSalvaged

@@ -1,9 +1,11 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { getDb, xpToNextLevel, SHARD_VALUES } = require('../db');
-const ENEMIES   = require('../data/enemies');
-const MONSTERS  = require('../data/monsters');
+const ENEMIES    = require('../data/enemies');
+const MONSTERS   = require('../data/monsters');
 const { rollLoot } = require('../data/loot');
+const SKILL_DEFS         = require('../data/skills');
+const { evaluateSkills } = require('../services/skillEvaluator');
 
 const router = express.Router();
 const ACTIVE_WINDOW_MS = 120_000;
@@ -13,6 +15,9 @@ const RECOVERY_MS      = 15_000;
 // ── in-memory combat state per player ────────────────────────────────────────
 // { playerId: { zoneId, targetKey, queue: [{...monster, currentHp}], queueIdx } }
 const playerCombat = new Map();
+
+// ── in-memory skill cooldowns: playerId -> lastSkillFiredAt (ms timestamp) ──
+const playerSkillCooldown = new Map();
 
 function makeEnemyQueue(zoneId, monsterId) {
   const pool = MONSTERS[zoneId] || [];
@@ -76,7 +81,7 @@ function getEquipmentBonuses(db, playerId) {
 // GET /api/zones
 router.get('/', (req, res) => {
   const db = getDb();
-  const playerId = req.headers['x-player-id'] || null;
+  const playerId = req.playerId || null;
   res.json(db.prepare('SELECT * FROM zones ORDER BY sortOrder').all().map(z => formatZone(z, db, playerId)));
 });
 
@@ -85,7 +90,7 @@ router.get('/:id', (req, res) => {
   const db = getDb();
   const zone = db.prepare('SELECT * FROM zones WHERE id=?').get(req.params.id);
   if (!zone) return res.status(404).json({ error: 'Zone not found' });
-  const playerId = req.headers['x-player-id'] || null;
+  const playerId = req.playerId || null;
   const events = db.prepare('SELECT * FROM zone_events WHERE zoneId=? ORDER BY createdAt DESC LIMIT 10').all(zone.id);
   res.json({ ...formatZone(zone, db, playerId), events });
 });
@@ -98,7 +103,7 @@ router.get('/:id/monsters', (req, res) => {
 // POST /api/zones/:id/select
 router.post('/:id/select', (req, res) => {
   const db = getDb();
-  const { playerId } = req.body;
+  const playerId = req.playerId;
   if (!playerId) return res.status(400).json({ error: 'playerId required' });
 
   const zone = db.prepare('SELECT * FROM zones WHERE id=?').get(req.params.id);
@@ -115,14 +120,15 @@ router.post('/:id/select', (req, res) => {
 // POST /api/zones/:id/combat-tick
 router.post('/:id/combat-tick', (req, res) => {
   const db  = getDb();
-  const { playerId, monsterId } = req.body;
+  const playerId  = req.playerId;
+  const { monsterId } = req.body;
   if (!playerId) return res.status(400).json({ error: 'playerId required' });
 
   const zone = db.prepare('SELECT * FROM zones WHERE id=?').get(req.params.id);
   if (!zone) return res.status(404).json({ error: 'Zone not found' });
 
   ensurePlayer(db, playerId);
-  const player = db.prepare('SELECT level,xp,hp,recoveryUntil,auto_salvage_rarities FROM player WHERE id=?').get(playerId);
+  const player = db.prepare('SELECT level,xp,hp,recoveryUntil,auto_salvage_rarities,active_skill_id FROM player WHERE id=?').get(playerId);
   const now = Date.now();
 
   // ── recovery check ──
@@ -147,7 +153,6 @@ router.post('/:id/combat-tick', (req, res) => {
   if (!state || state.zoneId !== zone.id || state.targetKey !== targetKey || !state.queue.length || state.queueIdx >= state.queue.length) {
     const q = makeEnemyQueue(zone.id, monsterId);
     if (!q.length) {
-      // Fallback: no monsters defined for zone
       return res.json({ hp: currentHp, playerLevel: player.level, playerXp: player.xp, xpToNextLevel: xpToNextLevel(player.level), leveledUp: false, killThisTick: false, damagePct: 0, currentEnemy: null, queuedEnemies: [] });
     }
     state = { zoneId: zone.id, targetKey, queue: q, queueIdx: 0 };
@@ -177,6 +182,26 @@ router.post('/:id/combat-tick', (req, res) => {
   }
 
   db.prepare('UPDATE player SET hp=? WHERE id=?').run(newHp, playerId);
+
+  // Update last_active_at and last_monster_id on every tick
+  db.prepare('UPDATE player SET last_active_at=?,last_monster_id=? WHERE id=?').run(now, monsterId || null, playerId);
+
+  // ── skills: evaluate all active skills against live combat state ────────────
+  // activeSkillIds is an array so the system is ready for multiple simultaneous skills.
+  const activeSkillIds = player.active_skill_id ? [player.active_skill_id] : [];
+  const firedSkills = evaluateSkills({
+    activeSkillIds,
+    skillDefs: SKILL_DEFS,
+    getSkillRow: (skillId) =>
+      db.prepare('SELECT rules FROM player_skills WHERE playerId=? AND skillId=?').get(playerId, skillId),
+    state,
+    now,
+    playerAtk,
+    newHp,
+    cooldownMap: playerSkillCooldown,
+    playerId,
+  });
+  const skillFired = firedSkills[0] ?? null;
 
   let killThisTick = false, killedEnemyName = null, xpGained = 0;
   let lootDrop = null, autoSalvaged = null, spiritShards = null;
@@ -224,13 +249,35 @@ router.post('/:id/combat-tick', (req, res) => {
       }
     }
 
+    // ── skill drop (3% chance, only skills not yet learned) ──
+    let skillDrop = null;
+    if (Math.random() < 0.03) {
+      const learnedRows = db.prepare('SELECT skillId FROM player_skills WHERE playerId=?').all(playerId);
+      const learned     = new Set(learnedRows.map(r => r.skillId));
+      const available   = Object.keys(SKILL_DEFS).filter(id => !learned.has(id));
+      if (available.length > 0) {
+        const sid = available[Math.floor(Math.random() * available.length)];
+        db.prepare('INSERT OR IGNORE INTO player_skills (playerId,skillId,learned_at) VALUES (?,?,?)').run(playerId, sid, now);
+        skillDrop = { skillId: sid, ...SKILL_DEFS[sid] };
+      }
+    }
+
     // ── advance queue ──
     state.queueIdx++;
     if (state.queueIdx >= state.queue.length) {
       state.queue   = makeEnemyQueue(zone.id, monsterId);
       state.queueIdx = 0;
     }
+
+    if (skillDrop) {
+      // attach to outer scope so it's in the response
+      Object.assign(state, { _lastSkillDrop: skillDrop });
+    }
   }
+
+  // pull skill drop out of state if set this tick
+  const skillDropOut = state._lastSkillDrop ?? null;
+  if (skillDropOut) delete state._lastSkillDrop;
 
   // Build enemies array: all currently active (after potential kill/advance)
   const enemies = state.queue.slice(state.queueIdx).map((e, i) => ({
@@ -245,6 +292,8 @@ router.post('/:id/combat-tick', (req, res) => {
     enemies,
     playerLevel: level, playerXp: xp, xpToNextLevel: xpToNextLevel(level), leveledUp,
     hp: newHp, damagePct: Math.round(damagePct * 10) / 10,
+    ...(skillFired  ? { skillFired }      : {}),
+    ...(skillDropOut ? { skillDrop: skillDropOut } : {}),
     ...(killThisTick ? {
       totalKillsInZone, bonusPercent, killsToNextBonus,
       lootDrop, autoSalvaged,

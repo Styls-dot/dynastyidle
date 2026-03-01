@@ -38,7 +38,7 @@ function EnemyCard({ enemy, killKey, lastKillXp, countClass }) {
   const showKill = enemy.active && killKey > 0;
 
   return (
-    <div className={`cc-enemy-card ${enemy.active ? 'cc-ec-active' : 'cc-ec-waiting'}`}>
+    <div className={`cc-enemy-card${enemy.active ? ' cc-ec-active' : ''}`}>
       <div className="cc-name cc-enemy-name">{enemy.name}</div>
       <div className="cc-lv">Lv {enemy.level}</div>
 

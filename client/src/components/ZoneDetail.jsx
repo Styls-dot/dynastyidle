@@ -1,10 +1,22 @@
 import React, { useState } from 'react';
-import { api } from '../api';
 import MonsterRoster from './MonsterRoster';
 import CombatDisplay from './CombatDisplay';
 
-export default function ZoneDetail({ zone, player, monsters, selectedMonsterId, onSelectMonster, onEnterZone, isActiveZone, onStatsUpdate, fighting, lastKill, lastHit, enemies, recovering, recoverySecs }) {
-  const [adding, setAdding] = useState(false);
+function RuleStepper({ label, value, min, max, onChange }) {
+  return (
+    <div className="skill-rule-row">
+      <span className="skill-rule-label">{label}</span>
+      <div className="skill-rule-stepper">
+        <button onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min}>−</button>
+        <span className="skill-rule-val">{value}</span>
+        <button onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max}>+</button>
+      </div>
+    </div>
+  );
+}
+
+export default function ZoneDetail({ zone, player, monsters, selectedMonsterId, onSelectMonster, onEnterZone, isActiveZone, onStatsUpdate, fighting, lastKill, lastHit, enemies, recovering, recoverySecs, learnedSkills = [], activeSkillId, onToggleSkill, onUpdateSkillRules }) {
+  const [expandedSkillId, setExpandedSkillId] = useState(null);
 
   if (!zone) {
     return (
@@ -24,12 +36,6 @@ export default function ZoneDetail({ zone, player, monsters, selectedMonsterId, 
   const toNext   = ps?.killsToNextBonus ?? 1000;
   const progress = ((kills % 1000) / 1000) * 100;
 
-  async function handleAddKills() {
-    setAdding(true);
-    try { onStatsUpdate(await api.addKills(zone.id, 100)); }
-    catch (e) { console.error(e); }
-    finally { setAdding(false); }
-  }
 
   return (
     <div className="center-panel">
@@ -72,6 +78,90 @@ export default function ZoneDetail({ zone, player, monsters, selectedMonsterId, 
           {zone.tags.map(t => <span key={t} className="tag">{t}</span>)}
         </div>
 
+        {/* Skills */}
+        <div className="section-label">Skills</div>
+        {learnedSkills.length === 0 ? (
+          <div className="skill-empty">No skills learned yet — spells drop from monsters.</div>
+        ) : (
+          <div className="skill-list">
+            {learnedSkills.map(skill => {
+              const isActive   = activeSkillId === skill.id;
+              const rules      = skill.rules || {};
+              const isExpanded = expandedSkillId === skill.id;
+
+              // Compact condition summary shown when skill is active but panel is collapsed
+              const minT  = rules.minTargets ?? 1;
+              const hpB   = rules.hpBelow   ?? null;
+              const hpA   = rules.hpAbove   ?? null;
+              const parts = [`≥${minT} enem${minT === 1 ? 'y' : 'ies'}`];
+              if (hpB != null && hpB < 100) parts.push(`HP <${hpB}%`);
+              if (hpA != null && hpA > 1)   parts.push(`HP ≥${hpA}%`);
+              const condSummary = parts.join('  ·  ');
+
+              return (
+                <div key={skill.id} className={`skill-card${isActive ? ' skill-card-active' : ''}`}>
+                  <div className="skill-card-top">
+                    <div className="skill-card-icon">{skill.icon}</div>
+                    <div className="skill-card-body">
+                      <div className="skill-card-name">{skill.name}</div>
+                      <div className="skill-card-desc">{skill.description}</div>
+                      <div className="skill-card-meta">Cooldown: {skill.cooldownMs / 1000}s</div>
+                    </div>
+                    <button
+                      className={`skill-toggle-btn${isActive ? ' active' : ''}`}
+                      onClick={() => {
+                        if (isActive) setExpandedSkillId(null);
+                        onToggleSkill(skill.id);
+                      }}
+                    >
+                      {isActive ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
+
+                  {isActive && (
+                    <div className="skill-conditions">
+                      <div className="skill-conditions-bar">
+                        <span className="skill-cond-summary">{condSummary}</span>
+                        <button
+                          className={`skill-cond-toggle${isExpanded ? ' open' : ''}`}
+                          onClick={() => setExpandedSkillId(isExpanded ? null : skill.id)}
+                        >
+                          ⚙ Conditions
+                        </button>
+                      </div>
+                      {isExpanded && (
+                        <div className="skill-rules">
+                          <RuleStepper
+                            label="Min. enemies alive"
+                            value={rules.minTargets ?? 1}
+                            min={1}
+                            max={6}
+                            onChange={v => onUpdateSkillRules(skill.id, { ...rules, minTargets: v })}
+                          />
+                          <RuleStepper
+                            label="HP below %"
+                            value={rules.hpBelow ?? 100}
+                            min={1}
+                            max={100}
+                            onChange={v => onUpdateSkillRules(skill.id, { ...rules, hpBelow: v })}
+                          />
+                          <RuleStepper
+                            label="HP above %"
+                            value={rules.hpAbove ?? 1}
+                            min={1}
+                            max={100}
+                            onChange={v => onUpdateSkillRules(skill.id, { ...rules, hpAbove: v })}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {/* Monster roster */}
         <MonsterRoster
           monsters={monsters}
@@ -108,12 +198,6 @@ export default function ZoneDetail({ zone, player, monsters, selectedMonsterId, 
           </div>
         </div>
 
-        <div className="debug-row">
-          <span className="debug-label">DEV</span>
-          <button className="btn-debug" onClick={handleAddKills} disabled={adding}>
-            {adding ? 'adding…' : '+ 100 kills'}
-          </button>
-        </div>
 
       </div>
     </div>
