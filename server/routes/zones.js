@@ -30,13 +30,13 @@ function makeEnemyQueue(zoneId, monsterId) {
     return [{ ...m, currentHp: m.hp }];
   }
 
-  // Hunt All: 1 guaranteed, then 50% chain for each additional (up to pool size)
+  // Hunt All: 1 guaranteed, then 50% chain — no upper limit
   const pick = () => {
     const m = pool[Math.floor(Math.random() * pool.length)];
     return { ...m, currentHp: m.hp };
   };
   const queue = [pick()];
-  while (queue.length < pool.length && Math.random() < 0.5) queue.push(pick());
+  while (Math.random() < 0.5) queue.push(pick());
   return queue;
 }
 
