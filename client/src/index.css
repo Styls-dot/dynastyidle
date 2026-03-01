@@ -1947,16 +1947,22 @@ body {
   font-size: 13px;
   color: var(--gold);
 }
-.shop-msg {
+.shop-toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
   background: var(--jade-bg);
   border: 1px solid var(--jade);
   color: var(--jade);
   font-size: 11px;
-  padding: 6px 10px;
+  padding: 7px 16px;
   border-radius: 3px;
-  margin-bottom: 12px;
+  pointer-events: none;
+  z-index: 999;
+  white-space: nowrap;
 }
-.shop-msg-err {
+.shop-toast-err {
   background: #fdf0f0;
   border-color: var(--accent);
   color: var(--accent);

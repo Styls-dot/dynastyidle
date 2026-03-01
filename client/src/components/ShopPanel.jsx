@@ -81,7 +81,7 @@ export default function ShopPanel({
         </div>
 
         {msg && (
-          <div className={`shop-msg${msg.ok ? '' : ' shop-msg-err'}`}>{msg.text}</div>
+          <div className={`shop-toast${msg.ok ? '' : ' shop-toast-err'}`}>{msg.text}</div>
         )}
 
         {/* Potions */}
