@@ -3,15 +3,12 @@ import MonsterRoster from './MonsterRoster';
 import CombatDisplay from './CombatDisplay';
 import { api } from '../api';
 
-function RuleStepper({ label, value, min, max, onChange }) {
+function Stepper({ value, min, max, onChange }) {
   return (
-    <div className="skill-rule-row">
-      <span className="skill-rule-label">{label}</span>
-      <div className="skill-rule-stepper">
-        <button onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min}>−</button>
-        <span className="skill-rule-val">{value}</span>
-        <button onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max}>+</button>
-      </div>
+    <div className="compact-stepper">
+      <button onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min}>−</button>
+      <span>{value}</span>
+      <button onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max}>+</button>
     </div>
   );
 }
@@ -36,7 +33,6 @@ export default function ZoneDetail({ zone, player, monsters, selectedMonsterId, 
   const bonus    = ps?.bonusPercent   ?? 0;
   const toNext   = ps?.killsToNextBonus ?? 1000;
   const progress = ((kills % 1000) / 1000) * 100;
-
 
   return (
     <div className="center-panel">
@@ -79,121 +75,121 @@ export default function ZoneDetail({ zone, player, monsters, selectedMonsterId, 
           {zone.tags.map(t => <span key={t} className="tag">{t}</span>)}
         </div>
 
-        {/* Skills */}
-        <div className="section-label">Skills</div>
-        {learnedSkills.length === 0 ? (
-          <div className="skill-empty">No skills learned yet — spells drop from monsters.</div>
-        ) : (
-          <div className="skill-list">
-            {learnedSkills.map(skill => {
-              const isActive   = activeSkillIds.includes(skill.id);
-              const rules      = skill.rules || {};
-              const isExpanded = expandedSkillId === skill.id;
+        {/* Skills + Potions in a two-column panel */}
+        <div className="combat-config">
 
-              // Compact condition summary shown when skill is active but panel is collapsed
-              const minT  = rules.minTargets ?? 1;
-              const hpB   = rules.hpBelow   ?? null;
-              const hpA   = rules.hpAbove   ?? null;
-              const parts = [`≥${minT} enem${minT === 1 ? 'y' : 'ies'}`];
-              if (hpB != null && hpB < 100) parts.push(`HP <${hpB}%`);
-              if (hpA != null && hpA > 1)   parts.push(`HP ≥${hpA}%`);
-              const condSummary = parts.join('  ·  ');
+          {/* Skills column */}
+          <div className="combat-config-col">
+            <div className="combat-config-label">Skills</div>
+            {learnedSkills.length === 0 ? (
+              <div className="skill-empty">No skills learned yet.</div>
+            ) : (
+              <div className="skill-rows">
+                {learnedSkills.map(skill => {
+                  const isActive   = activeSkillIds.includes(skill.id);
+                  const rules      = skill.rules || {};
+                  const isExpanded = expandedSkillId === skill.id;
 
-              return (
-                <div key={skill.id} className={`skill-card${isActive ? ' skill-card-active' : ''}`}>
-                  <div className="skill-card-top">
-                    <div className="skill-card-icon">{skill.icon}</div>
-                    <div className="skill-card-body">
-                      <div className="skill-card-name">{skill.name}</div>
-                      <div className="skill-card-desc">{skill.description}</div>
-                      <div className="skill-card-meta">
-                        Cooldown: {skill.cooldownMs / 1000}s
-                        {isActive && skillCooldowns[skill.id] > 0
-                          ? <span className="skill-cd-remaining"> — {(skillCooldowns[skill.id] / 1000).toFixed(1)}s</span>
-                          : isActive && <span className="skill-cd-ready"> — klar</span>
-                        }
+                  const minT  = rules.minTargets ?? 1;
+                  const hpB   = rules.hpBelow   ?? null;
+                  const hpA   = rules.hpAbove   ?? null;
+                  const parts = [`≥${minT}`];
+                  if (hpB != null && hpB < 100) parts.push(`HP<${hpB}%`);
+                  if (hpA != null && hpA > 1)   parts.push(`HP≥${hpA}%`);
+                  const condSummary = parts.join(' · ');
+
+                  const cdMs = skillCooldowns[skill.id] ?? 0;
+
+                  return (
+                    <div key={skill.id} className={`skill-row${isActive ? ' skill-row-active' : ''}`}>
+                      <div className="skill-row-main">
+                        <span className="skill-row-icon">{skill.icon}</span>
+                        <div className="skill-row-body">
+                          <span className="skill-row-name">{skill.name}</span>
+                          <span className="skill-row-meta">
+                            {skill.cooldownMs / 1000}s
+                            {isActive && (
+                              cdMs > 0
+                                ? <span className="skill-cd-remaining"> · {(cdMs / 1000).toFixed(1)}s</span>
+                                : <span className="skill-cd-ready"> · ready</span>
+                            )}
+                          </span>
+                        </div>
+                        <div className="skill-row-actions">
+                          {isActive && (
+                            <button
+                              className={`skill-gear-btn${isExpanded ? ' open' : ''}`}
+                              title="Conditions"
+                              onClick={() => setExpandedSkillId(isExpanded ? null : skill.id)}
+                            >⚙</button>
+                          )}
+                          <button
+                            className={`skill-toggle-btn${isActive ? ' active' : ''}`}
+                            onClick={() => {
+                              if (isActive) setExpandedSkillId(null);
+                              onToggleSkill(skill.id);
+                            }}
+                          >{isActive ? 'ON' : 'OFF'}</button>
+                        </div>
                       </div>
-                    </div>
-                    <button
-                      className={`skill-toggle-btn${isActive ? ' active' : ''}`}
-                      onClick={() => {
-                        if (isActive) setExpandedSkillId(null);
-                        onToggleSkill(skill.id);
-                      }}
-                    >
-                      {isActive ? 'ON' : 'OFF'}
-                    </button>
-                  </div>
 
-                  {isActive && (
-                    <div className="skill-conditions">
-                      <div className="skill-conditions-bar">
-                        <span className="skill-cond-summary">{condSummary}</span>
-                        <button
-                          className={`skill-cond-toggle${isExpanded ? ' open' : ''}`}
-                          onClick={() => setExpandedSkillId(isExpanded ? null : skill.id)}
-                        >
-                          ⚙ Conditions
-                        </button>
-                      </div>
-                      {isExpanded && (
-                        <div className="skill-rules">
-                          <RuleStepper
-                            label="Min. enemies alive"
-                            value={rules.minTargets ?? 1}
-                            min={1}
-                            max={6}
-                            onChange={v => onUpdateSkillRules(skill.id, { ...rules, minTargets: v })}
-                          />
-                          <RuleStepper
-                            label="Your HP below %"
-                            value={rules.hpBelow ?? 100}
-                            min={1}
-                            max={100}
-                            onChange={v => onUpdateSkillRules(skill.id, { ...rules, hpBelow: v })}
-                          />
-                          <RuleStepper
-                            label="Your HP above %"
-                            value={rules.hpAbove ?? 1}
-                            min={1}
-                            max={100}
-                            onChange={v => onUpdateSkillRules(skill.id, { ...rules, hpAbove: v })}
-                          />
+                      {isActive && isExpanded && (
+                        <div className="skill-row-expand">
+                          <div className="skill-expand-row">
+                            <span className="skill-expand-label">Min. enemies</span>
+                            <Stepper value={rules.minTargets ?? 1} min={1} max={6}
+                              onChange={v => onUpdateSkillRules(skill.id, { ...rules, minTargets: v })} />
+                          </div>
+                          <div className="skill-expand-row">
+                            <span className="skill-expand-label">HP below %</span>
+                            <Stepper value={rules.hpBelow ?? 100} min={1} max={100}
+                              onChange={v => onUpdateSkillRules(skill.id, { ...rules, hpBelow: v })} />
+                          </div>
+                          <div className="skill-expand-row">
+                            <span className="skill-expand-label">HP above %</span>
+                            <Stepper value={rules.hpAbove ?? 1} min={1} max={100}
+                              onChange={v => onUpdateSkillRules(skill.id, { ...rules, hpAbove: v })} />
+                          </div>
                         </div>
                       )}
                     </div>
-                  )}
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
 
-        {/* Potion settings */}
-        <div className="section-label" style={{ marginTop: 16 }}>Potions</div>
-        <div className="potion-settings">
-          <div className="potion-settings-row">
-            <span className="potion-settings-name">🍶 HP Potions</span>
-            <span className="potion-settings-count">{hpPotionCount} i taske</span>
-            <RuleStepper
-              label="Auto-brug under HP%"
-              value={hpPotionThreshold}
-              min={1}
-              max={99}
-              onChange={onHpThresholdChange}
-            />
+          {/* Potions column */}
+          <div className="combat-config-col">
+            <div className="combat-config-label">Potions</div>
+            <div className="potion-rows">
+              <div className="potion-row">
+                <span className="potion-row-icon">🍶</span>
+                <div className="potion-row-body">
+                  <span className="potion-row-name">HP Potion</span>
+                  <span className="potion-row-count">{hpPotionCount} in bag</span>
+                </div>
+                <div className="potion-row-right">
+                  <span className="potion-row-auto">Auto &lt;</span>
+                  <Stepper value={hpPotionThreshold} min={1} max={99} onChange={onHpThresholdChange} />
+                  <span className="potion-row-pct">%</span>
+                </div>
+              </div>
+              <div className="potion-row">
+                <span className="potion-row-icon">💧</span>
+                <div className="potion-row-body">
+                  <span className="potion-row-name">Mana Potion</span>
+                  <span className="potion-row-count">{manaPotionCount} in bag</span>
+                </div>
+                <div className="potion-row-right">
+                  <span className="potion-row-auto">Auto &lt;</span>
+                  <Stepper value={manaPotionThreshold} min={1} max={99} onChange={onManaThresholdChange} />
+                  <span className="potion-row-pct">%</span>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="potion-settings-row">
-            <span className="potion-settings-name">💧 Mana Potions</span>
-            <span className="potion-settings-count">{manaPotionCount} i taske</span>
-            <RuleStepper
-              label="Auto-brug under MP%"
-              value={manaPotionThreshold}
-              min={1}
-              max={99}
-              onChange={onManaThresholdChange}
-            />
-          </div>
+
         </div>
 
         {/* Monster roster */}
@@ -231,7 +227,6 @@ export default function ZoneDetail({ zone, player, monsters, selectedMonsterId, 
             <div className="kill-bar-fill" style={{ width: `${progress}%` }} />
           </div>
         </div>
-
 
       </div>
     </div>

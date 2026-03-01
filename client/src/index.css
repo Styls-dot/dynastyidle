@@ -401,36 +401,6 @@ body {
 .stat-card-value.jade   { color: var(--jade); }
 .stat-card-value.accent { color: var(--gold); }
 
-/* ─── POTION SETTINGS (zone detail) ────────────────────────────────── */
-
-.potion-settings {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 16px;
-  max-width: 460px;
-}
-.potion-settings-row {
-  background: var(--panel);
-  border: 1px solid var(--border-soft);
-  border-radius: 2px;
-  padding: 8px 12px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.potion-settings-name {
-  font-size: 11px;
-  color: var(--text);
-  min-width: 110px;
-}
-.potion-settings-count {
-  font-size: 10px;
-  color: var(--text-muted);
-  flex: 1;
-}
-
 /* ─── KILL BAR ─────────────────────────────────────────────────────── */
 
 .kill-bar-wrap { background: var(--panel); border: 1px solid var(--border); padding: 11px 13px; margin-bottom: 22px; max-width: 460px; border-radius: 2px; }
@@ -1537,122 +1507,182 @@ body {
 ::-webkit-scrollbar-thumb  { background: var(--border); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--gold); }
 
-/* ─── SKILLS ───────────────────────────────────────────────────────── */
+/* ─── COMBAT CONFIG (skills + potions two-column layout) ───────────── */
 
-.skill-empty {
-  font-size: 11px;
-  font-style: italic;
-  color: var(--text-muted);
-  padding: 6px 0 14px;
+.combat-config {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+  align-items: start;
 }
 
-.skill-list {
+.combat-config-col {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 18px;
+  gap: 4px;
 }
 
-.skill-card {
-  display: flex;
-  flex-direction: column;
-  background: var(--panel);
-  border: 1.5px solid var(--border-soft);
-  border-radius: 6px;
-  padding: 10px 12px;
-  transition: border-color 0.15s;
-}
-
-.skill-card-top {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.skill-card-active {
-  border-color: var(--jade);
-  background: var(--jade-bg);
-}
-
-.skill-conditions {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-soft);
-}
-
-.skill-conditions-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.skill-cond-summary {
+.combat-config-label {
   font-family: 'Cinzel', serif;
   font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+/* ─── SKILLS (compact rows) ────────────────────────────────────────── */
+
+.skill-empty {
+  font-size: 10px;
+  font-style: italic;
+  color: var(--text-muted);
+  padding: 4px 0;
+}
+
+.skill-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.skill-row {
+  background: var(--panel);
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+  overflow: hidden;
+  transition: border-color 0.12s;
+}
+
+.skill-row-active {
+  border-color: var(--jade);
+}
+
+.skill-row-main {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+}
+
+.skill-row-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  width: 18px;
+  text-align: center;
+}
+
+.skill-row-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.skill-row-name {
+  font-family: 'Cinzel', serif;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.skill-row-meta {
+  font-family: 'Cinzel', serif;
+  font-size: 8px;
   color: var(--text-muted);
   letter-spacing: 0.5px;
 }
 
-.skill-cond-toggle {
-  flex-shrink: 0;
-  font-family: 'Cinzel', serif;
-  font-size: 8px;
-  letter-spacing: 1px;
-  padding: 3px 7px;
-  border: 1px solid var(--border-soft);
-  border-radius: 3px;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: border-color 0.1s, color 0.1s;
-}
-.skill-cond-toggle:hover { border-color: var(--gold); color: var(--gold); }
-.skill-cond-toggle.open  { border-color: var(--jade); color: var(--jade); }
+.skill-cd-remaining { color: var(--accent); }
+.skill-cd-ready     { color: var(--jade); }
 
-.skill-rules {
-  margin-top: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.skill-rules-title {
-  font-family: 'Cinzel', serif;
-  font-size: 8px;
-  letter-spacing: 1.5px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  margin-bottom: 2px;
-}
-
-.skill-rule-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.skill-rule-label {
-  font-size: 10px;
-  color: var(--text-dim);
-}
-
-.skill-rule-stepper {
+.skill-row-actions {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
 }
 
-.skill-rule-stepper button {
-  width: 20px;
-  height: 20px;
-  border: 1px solid var(--border);
-  border-radius: 3px;
+.skill-gear-btn {
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--border-soft);
+  border-radius: 2px;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 13px;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.1s, color 0.1s;
+  padding: 0;
+}
+.skill-gear-btn:hover { border-color: var(--gold); color: var(--gold); }
+.skill-gear-btn.open  { border-color: var(--jade); color: var(--jade); background: var(--jade-bg); }
+
+.skill-toggle-btn {
+  flex-shrink: 0;
+  padding: 2px 7px;
+  font-family: 'Cinzel', serif;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+.skill-toggle-btn:hover  { border-color: var(--jade); color: var(--jade); }
+.skill-toggle-btn.active { border-color: var(--jade); color: var(--jade); background: var(--jade-bg); }
+
+.skill-row-expand {
+  padding: 6px 8px 7px;
+  border-top: 1px solid var(--border-soft);
+  background: var(--panel-alt, #1a1a1a);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.skill-expand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.skill-expand-label {
+  font-size: 9px;
+  color: var(--text-dim);
+}
+
+/* ─── COMPACT STEPPER (skills expand + potions) ─────────────────────── */
+
+.compact-stepper {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.compact-stepper button {
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
   line-height: 1;
   padding: 0;
   display: flex;
@@ -1660,79 +1690,79 @@ body {
   justify-content: center;
   transition: border-color 0.1s, color 0.1s;
 }
+.compact-stepper button:hover:not(:disabled) { border-color: var(--jade); color: var(--jade); }
+.compact-stepper button:disabled { opacity: 0.3; cursor: default; }
 
-.skill-rule-stepper button:hover:not(:disabled) { border-color: var(--jade); color: var(--jade); }
-.skill-rule-stepper button:disabled { opacity: 0.3; cursor: default; }
-
-.skill-rule-val {
+.compact-stepper span {
   font-family: 'Cinzel', serif;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   color: var(--text);
-  min-width: 28px;
+  min-width: 22px;
   text-align: center;
 }
 
-.skill-card-icon {
-  font-size: 22px;
+/* ─── POTIONS (compact rows) ────────────────────────────────────────── */
+
+.potion-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.potion-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+  background: var(--panel);
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+}
+
+.potion-row-icon {
+  font-size: 14px;
   flex-shrink: 0;
-  width: 28px;
+  width: 18px;
   text-align: center;
 }
 
-.skill-card-body {
+.potion-row-body {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
-.skill-card-name {
+.potion-row-name {
   font-family: 'Cinzel', serif;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   color: var(--text);
-  letter-spacing: 0.5px;
-  margin-bottom: 2px;
 }
 
-.skill-card-desc {
-  font-size: 10px;
-  color: var(--text-dim);
-  line-height: 1.4;
-  margin-bottom: 3px;
-}
-
-.skill-card-meta {
-  font-family: 'Cinzel', serif;
-  font-size: 8px;
-  color: var(--text-muted);
-  letter-spacing: 1px;
-}
-.skill-cd-remaining {
-  color: var(--accent);
-  font-size: 8px;
-}
-.skill-cd-ready {
-  color: var(--jade);
-  font-size: 8px;
-}
-
-.skill-toggle-btn {
-  flex-shrink: 0;
-  padding: 4px 10px;
-  font-family: 'Cinzel', serif;
+.potion-row-count {
   font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 1.5px;
-  border: 1.5px solid var(--border);
-  border-radius: 3px;
-  background: transparent;
   color: var(--text-muted);
-  cursor: pointer;
-  transition: border-color 0.12s, color 0.12s, background 0.12s;
 }
 
-.skill-toggle-btn:hover  { border-color: var(--jade); color: var(--jade); }
-.skill-toggle-btn.active { border-color: var(--jade); color: var(--jade); background: var(--jade-bg); }
+.potion-row-right {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.potion-row-auto {
+  font-size: 9px;
+  color: var(--text-dim);
+}
+
+.potion-row-pct {
+  font-size: 9px;
+  color: var(--text-dim);
+}
 
 /* Skill log entries */
 .event-skill-drop { color: var(--gold); font-weight: 600; }
@@ -2059,43 +2089,6 @@ body {
 }
 .shop-buy-btn:hover:not(:disabled) { border-color: var(--gold); }
 .shop-buy-btn:disabled { opacity: .35; cursor: default; }
-.shop-threshold-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  border-top: 1px solid var(--border-soft);
-  padding-top: 8px;
-}
-.shop-threshold-label {
-  font-size: 9px;
-  color: var(--text-muted);
-  letter-spacing: .04em;
-}
-.shop-stepper {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.shop-stepper button {
-  background: var(--panel-alt);
-  border: 1px solid var(--border);
-  color: var(--text-dim);
-  font-family: 'Cinzel', serif;
-  font-size: 11px;
-  width: 22px;
-  height: 22px;
-  cursor: pointer;
-  border-radius: 2px;
-}
-.shop-stepper button:hover:not(:disabled) { border-color: var(--jade); color: var(--jade); }
-.shop-stepper button:disabled { opacity: .3; cursor: default; }
-.shop-stepper span {
-  font-size: 11px;
-  color: var(--text);
-  min-width: 36px;
-  text-align: center;
-}
 .shop-sell-empty {
   font-size: 11px;
   color: var(--text-muted);
