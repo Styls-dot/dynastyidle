@@ -37,8 +37,14 @@ export const api = {
 
   // Skills
   getSkills:        ()                => call('GET',   '/skills'),
-  setActiveSkill:   (skillId)         => call('POST',  '/skills/set-active', { skillId }),
+  toggleSkill:      (skillId)         => call('POST',  '/skills/toggle', { skillId }),
   updateSkillRules: (skillId, rules)  => call('PATCH', `/skills/${skillId}/rules`, { rules }),
+
+  // Shop
+  getShopInfo:        ()                     => call('GET',   '/shop/info'),
+  buyPotion:          (type, qty)            => call('POST',  '/shop/buy', { type, qty }),
+  sellItem:           (itemId)               => call('POST',  '/shop/sell', { itemId }),
+  setPotionSettings:  (settings)             => call('PATCH', '/shop/potion-settings', settings),
 
   // Inventory
   getInventory:    ()              => call('GET',    '/inventory'),

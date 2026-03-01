@@ -3,9 +3,10 @@ import React from 'react';
 export default function PlayerBar({ player, zoneName, recovering, recoverySecsLeft }) {
   if (!player) return <div className="player-bar" />;
 
-  const { level, xp, xpToNextLevel, hp } = player;
-  const xpPct = Math.min(100, Math.round((xp / xpToNextLevel) * 100));
-  const hpPct = Math.max(0, Math.min(100, Math.round(hp ?? 100)));
+  const { level, xp, xpToNextLevel, hp, mana } = player;
+  const xpPct   = Math.min(100, Math.round((xp / xpToNextLevel) * 100));
+  const hpPct   = Math.max(0, Math.min(100, Math.round(hp ?? 100)));
+  const manaPct = Math.max(0, Math.min(100, Math.round(mana ?? 100)));
   const hpColor = hpPct > 50 ? 'var(--jade)' : hpPct > 20 ? 'var(--gold)' : 'var(--accent)';
 
   return (
@@ -34,6 +35,15 @@ export default function PlayerBar({ player, zoneName, recovering, recoverySecsLe
             <span className="pb-bar-text" style={{ color: hpColor }}>{hpPct}%</span>
           </>
         )}
+      </div>
+
+      {/* Mana bar */}
+      <div className="pb-bar-group">
+        <span className="pb-bar-label">MP</span>
+        <div className="pb-track">
+          <div className="pb-fill" style={{ width: `${manaPct}%`, background: 'var(--mana)' }} />
+        </div>
+        <span className="pb-bar-text" style={{ color: 'var(--mana)' }}>{manaPct}%</span>
       </div>
 
       {zoneName && <span className="pb-zone">{zoneName}</span>}

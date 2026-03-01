@@ -16,7 +16,7 @@ router.get('/player', (req, res) => {
   if (!playerId) return res.status(400).json({ error: 'Not authenticated' });
 
   ensurePlayer(db, playerId);
-  const p        = db.prepare('SELECT id,level,xp,hp,recoveryUntil,spirit_shards,auto_salvage_rarities FROM player WHERE id=?').get(playerId);
+  const p        = db.prepare('SELECT id,level,xp,hp,mana,gold,recoveryUntil,spirit_shards,auto_salvage_rarities,hp_potion_count,mana_potion_count,hp_potion_threshold,mana_potion_threshold FROM player WHERE id=?').get(playerId);
   const presence = db.prepare('SELECT zoneId FROM player_presence WHERE playerId=?').get(playerId);
 
   res.json({
@@ -25,10 +25,16 @@ router.get('/player', (req, res) => {
     xp:                  p.xp,
     xpToNextLevel:       xpToNextLevel(p.level),
     hp:                  p.hp,
+    mana:                p.mana ?? 100,
+    gold:                p.gold ?? 0,
     recoveryUntil:       p.recoveryUntil,
     currentZoneId:       presence?.zoneId ?? null,
     spiritShards:        p.spirit_shards ?? 0,
     autoSalvageRarities: JSON.parse(p.auto_salvage_rarities || '[]'),
+    hpPotionCount:       p.hp_potion_count ?? 0,
+    manaPotionCount:     p.mana_potion_count ?? 0,
+    hpPotionThreshold:   p.hp_potion_threshold ?? 30,
+    manaPotionThreshold: p.mana_potion_threshold ?? 30,
   });
 });
 

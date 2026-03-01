@@ -8,6 +8,7 @@ const zonesRouter    = require('./routes/zones');
 const playerRouter   = require('./routes/player');
 const inventoryRouter = require('./routes/inventory');
 const skillsRouter   = require('./routes/skills');
+const shopRouter     = require('./routes/shop');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -25,6 +26,7 @@ app.use('/api', requireAuth);
 app.use('/api/zones',     zonesRouter);
 app.use('/api/inventory', inventoryRouter);
 app.use('/api/skills',    skillsRouter);
+app.use('/api/shop',      shopRouter);
 app.use('/api',           playerRouter);
 
 // Serve built React app

@@ -15,7 +15,7 @@ function RuleStepper({ label, value, min, max, onChange }) {
   );
 }
 
-export default function ZoneDetail({ zone, player, monsters, selectedMonsterId, onSelectMonster, onEnterZone, isActiveZone, onStatsUpdate, fighting, lastKill, lastHit, enemies, recovering, recoverySecs, learnedSkills = [], activeSkillId, onToggleSkill, onUpdateSkillRules }) {
+export default function ZoneDetail({ zone, player, monsters, selectedMonsterId, onSelectMonster, onEnterZone, isActiveZone, onStatsUpdate, fighting, lastKill, lastHit, enemies, recovering, recoverySecs, learnedSkills = [], activeSkillIds = [], onToggleSkill, onUpdateSkillRules }) {
   const [expandedSkillId, setExpandedSkillId] = useState(null);
 
   if (!zone) {
@@ -85,7 +85,7 @@ export default function ZoneDetail({ zone, player, monsters, selectedMonsterId, 
         ) : (
           <div className="skill-list">
             {learnedSkills.map(skill => {
-              const isActive   = activeSkillId === skill.id;
+              const isActive   = activeSkillIds.includes(skill.id);
               const rules      = skill.rules || {};
               const isExpanded = expandedSkillId === skill.id;
 

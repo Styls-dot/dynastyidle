@@ -100,6 +100,13 @@ function initDb() {
   safeAlter(`ALTER TABLE player ADD COLUMN last_monster_id TEXT`);
   safeAlter(`ALTER TABLE player ADD COLUMN active_skill_id TEXT`);
   safeAlter(`ALTER TABLE player_skills ADD COLUMN rules TEXT NOT NULL DEFAULT '{}'`);
+  safeAlter(`ALTER TABLE player ADD COLUMN mana                  REAL    NOT NULL DEFAULT 100`);
+  safeAlter(`ALTER TABLE player ADD COLUMN gold                  INTEGER NOT NULL DEFAULT 0`);
+  safeAlter(`ALTER TABLE player ADD COLUMN hp_potion_count       INTEGER NOT NULL DEFAULT 0`);
+  safeAlter(`ALTER TABLE player ADD COLUMN mana_potion_count     INTEGER NOT NULL DEFAULT 0`);
+  safeAlter(`ALTER TABLE player ADD COLUMN hp_potion_threshold   INTEGER NOT NULL DEFAULT 30`);
+  safeAlter(`ALTER TABLE player ADD COLUMN mana_potion_threshold INTEGER NOT NULL DEFAULT 30`);
+  safeAlter(`ALTER TABLE player ADD COLUMN active_skill_ids      TEXT    NOT NULL DEFAULT '[]'`);
 
   const { c } = db.prepare('SELECT COUNT(*) as c FROM zones').get();
   if (c === 0) seedZones(db);
@@ -130,9 +137,14 @@ function seedZones(db) {
 }
 
 const SHARD_VALUES = { common: 1, rare: 4, epic: 12, legendary: 30, mythic: 100 };
+const SELL_PRICES  = { common: 5, rare: 15, epic: 50, legendary: 150, mythic: 500 };
+const HP_POTION_COST   = 50;   // gold
+const MANA_POTION_COST = 40;   // gold
+const POTION_RESTORE   = 50;   // HP/mana restored per potion
+const POTION_MAX_STACK = 20;
 
 // No cap — cost and chance scale indefinitely
 function getEnhanceCost(plus)   { return 10 + plus * plus * 3; }
 function getEnhanceChance(plus) { return Math.max(1, Math.round(100 * Math.pow(0.82, plus))); }
 
-module.exports = { getDb, initDb, xpToNextLevel, SHARD_VALUES, getEnhanceCost, getEnhanceChance };
+module.exports = { getDb, initDb, xpToNextLevel, SHARD_VALUES, SELL_PRICES, HP_POTION_COST, MANA_POTION_COST, POTION_RESTORE, POTION_MAX_STACK, getEnhanceCost, getEnhanceChance };

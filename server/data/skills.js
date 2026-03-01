@@ -7,6 +7,7 @@ module.exports = {
     icon:        '🌀',
     cooldownMs:  10000,
     type:        'aoe',
+    manaCost:    20,
   },
   'iron-body': {
     id:          'iron-body',
@@ -15,7 +16,8 @@ module.exports = {
     icon:        '🛡',
     cooldownMs:  12000,
     type:        'heal',
-    healAmount:  20,      // restores 20 HP (player HP is stored as 0-100)
+    healAmount:  20,
+    manaCost:    15,
   },
   'soul-sever': {
     id:          'soul-sever',
@@ -24,7 +26,8 @@ module.exports = {
     icon:        '⚡',
     cooldownMs:  6000,
     type:        'single',
-    dmgMult:     2.5,     // multiplier on normal player attack
+    dmgMult:     2.5,
+    manaCost:    25,
   },
   'five-element-palm': {
     id:          'five-element-palm',
@@ -32,6 +35,7 @@ module.exports = {
     description: 'Unleash all five elemental forces simultaneously, bypassing every enemy\'s defenses.',
     icon:        '☯',
     cooldownMs:  18000,
-    type:        'aoe-pierce', // AOE that ignores enemy def
+    type:        'aoe-pierce',
+    manaCost:    35,
   },
 };

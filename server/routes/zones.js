@@ -11,6 +11,7 @@ const router = express.Router();
 const ACTIVE_WINDOW_MS = 120_000;
 const INVENTORY_CAP    = 50;
 const RECOVERY_MS      = 15_000;
+const MANA_REGEN       = 5;    // mana restored per combat tick
 
 // ── in-memory combat state per player ────────────────────────────────────────
 // { playerId: { zoneId, targetKey, queue: [{...monster, currentHp}], queueIdx } }
@@ -128,12 +129,12 @@ router.post('/:id/combat-tick', (req, res) => {
   if (!zone) return res.status(404).json({ error: 'Zone not found' });
 
   ensurePlayer(db, playerId);
-  const player = db.prepare('SELECT level,xp,hp,recoveryUntil,auto_salvage_rarities,active_skill_id FROM player WHERE id=?').get(playerId);
+  const player = db.prepare('SELECT level,xp,hp,mana,gold,recoveryUntil,auto_salvage_rarities,active_skill_ids,hp_potion_count,mana_potion_count,hp_potion_threshold,mana_potion_threshold FROM player WHERE id=?').get(playerId);
   const now = Date.now();
 
   // ── recovery check ──
   if (player.recoveryUntil > now) {
-    return res.json({ recovering: true, recoveryUntil: player.recoveryUntil, hp: 0, playerLevel: player.level, playerXp: player.xp, xpToNextLevel: xpToNextLevel(player.level) });
+    return res.json({ recovering: true, recoveryUntil: player.recoveryUntil, hp: 0, mana: player.mana ?? 100, playerLevel: player.level, playerXp: player.xp, xpToNextLevel: xpToNextLevel(player.level) });
   }
 
   // ── auto-restore after recovery period ──
@@ -153,7 +154,7 @@ router.post('/:id/combat-tick', (req, res) => {
   if (!state || state.zoneId !== zone.id || state.targetKey !== targetKey || !state.queue.length || state.queueIdx >= state.queue.length) {
     const q = makeEnemyQueue(zone.id, monsterId);
     if (!q.length) {
-      return res.json({ hp: currentHp, playerLevel: player.level, playerXp: player.xp, xpToNextLevel: xpToNextLevel(player.level), leveledUp: false, killThisTick: false, damagePct: 0, currentEnemy: null, queuedEnemies: [] });
+      return res.json({ hp: currentHp, mana: player.mana ?? 100, playerLevel: player.level, playerXp: player.xp, xpToNextLevel: xpToNextLevel(player.level), leveledUp: false, killThisTick: false, damagePct: 0, currentEnemy: null, queuedEnemies: [] });
     }
     state = { zoneId: zone.id, targetKey, queue: q, queueIdx: 0 };
     playerCombat.set(playerId, state);
@@ -172,25 +173,40 @@ router.post('/:id/combat-tick', (req, res) => {
   const defReduction  = Math.min(0.75, defBonus * 0.02);
   const damagePct     = activeEnemies.reduce((sum, e) => sum + Math.max(0, e.atk * 0.4 * (1 - defReduction)), 0);
   const regenPct      = Math.max(0.3, Math.min(8, (player.level - frontEnemy.level + 3) * 0.6));
-  const newHp         = Math.max(0, Math.min(100, currentHp - damagePct + regenPct));
+  let newHp           = Math.max(0, Math.min(100, currentHp - damagePct + regenPct));
+
+  // ── auto HP potion (fires before death check) ──
+  let hpPotionUsed = false;
+  if (newHp < (player.hp_potion_threshold ?? 30) && (player.hp_potion_count ?? 0) > 0) {
+    newHp = Math.min(100, newHp + 50);
+    db.prepare('UPDATE player SET hp_potion_count = hp_potion_count - 1 WHERE id=?').run(playerId);
+    hpPotionUsed = true;
+  }
 
   // ── death ──
   if (newHp <= 0) {
     const recoveryUntil = now + RECOVERY_MS;
     db.prepare('UPDATE player SET hp=0,recoveryUntil=? WHERE id=?').run(recoveryUntil, playerId);
     playerCombat.delete(playerId);
-    return res.json({ died: true, recoveryUntil, hp: 0, playerLevel: player.level, playerXp: player.xp, xpToNextLevel: xpToNextLevel(player.level) });
+    return res.json({ died: true, recoveryUntil, hp: 0, mana: player.mana ?? 100, playerLevel: player.level, playerXp: player.xp, xpToNextLevel: xpToNextLevel(player.level) });
   }
 
-  db.prepare('UPDATE player SET hp=? WHERE id=?').run(newHp, playerId);
+  // ── mana regen + auto mana potion ──
+  const currentMana = player.mana ?? 100;
+  let newMana = Math.min(100, currentMana + MANA_REGEN);
+  let manaPotionUsed = false;
+  if (newMana < (player.mana_potion_threshold ?? 30) && (player.mana_potion_count ?? 0) > 0) {
+    newMana = Math.min(100, newMana + 50);
+    db.prepare('UPDATE player SET mana_potion_count = mana_potion_count - 1 WHERE id=?').run(playerId);
+    manaPotionUsed = true;
+  }
 
   // Update last_active_at and last_monster_id on every tick
   db.prepare('UPDATE player SET last_active_at=?,last_monster_id=? WHERE id=?').run(now, monsterId || null, playerId);
 
-  // ── skills: evaluate all active skills against live combat state ────────────
-  // activeSkillIds is an array so the system is ready for multiple simultaneous skills.
-  const activeSkillIds = player.active_skill_id ? [player.active_skill_id] : [];
-  const firedSkills = evaluateSkills({
+  // ── skills: evaluate all active skills with mana check ──────────────────────
+  const activeSkillIds = JSON.parse(player.active_skill_ids || '[]');
+  const { fired: firedSkills, manaSpent } = evaluateSkills({
     activeSkillIds,
     skillDefs: SKILL_DEFS,
     getSkillRow: (skillId) =>
@@ -199,21 +215,24 @@ router.post('/:id/combat-tick', (req, res) => {
     now,
     playerAtk,
     newHp,
+    currentMana: newMana,
     cooldownMap: playerSkillCooldown,
     playerId,
   });
-  const skillFired = firedSkills[0] ?? null;
 
-  // Apply healing from heal-type skills
-  let finalHp = newHp;
-  if (skillFired?.hpRestore) {
-    finalHp = Math.min(100, newHp + skillFired.hpRestore);
-    db.prepare('UPDATE player SET hp=? WHERE id=?').run(finalHp, playerId);
-  }
+  // ── Final HP/mana after skill effects ──
+  let finalHp   = newHp;
+  const finalMana = Math.max(0, newMana - manaSpent);
+  const healFired = firedSkills.find(s => s.hpRestore);
+  if (healFired) finalHp = Math.min(100, finalHp + healFired.hpRestore);
+
+  // Write HP + mana in one statement
+  db.prepare('UPDATE player SET hp=?, mana=? WHERE id=?').run(finalHp, finalMana, playerId);
 
   let killThisTick = false, killedEnemyName = null, xpGained = 0;
   let lootDrop = null, autoSalvaged = null, spiritShards = null;
   let totalKillsInZone, bonusPercent, killsToNextBonus;
+  let totalGoldGained = 0;
   let { level, xp } = player, leveledUp = false;
 
   // Parsed once — used by both the main kill and the AOE sweep below
@@ -253,6 +272,9 @@ router.post('/:id/combat-tick', (req, res) => {
         }
       }
     }
+
+    // Gold drop: enemy.level to 2×enemy.level gold per kill
+    totalGoldGained += Math.max(1, Math.round(enemy.level + Math.random() * enemy.level));
   };
 
   if (frontEnemy.currentHp <= 0) {
@@ -292,8 +314,11 @@ router.post('/:id/combat-tick', (req, res) => {
       state.queueIdx = 0;
     }
 
-    // DB write for level/xp happens once after all kills are processed
+    // DB write for level/xp + gold once after all kills are processed
     db.prepare('UPDATE player SET level=?,xp=? WHERE id=?').run(level, xp, playerId);
+    if (totalGoldGained > 0) {
+      db.prepare('UPDATE player SET gold = gold + ? WHERE id=?').run(totalGoldGained, playerId);
+    }
 
     if (skillDrop) {
       Object.assign(state, { _lastSkillDrop: skillDrop });
@@ -318,12 +343,13 @@ router.post('/:id/combat-tick', (req, res) => {
     killThisTick, killedEnemyName, xpGained,
     enemies,
     playerLevel: level, playerXp: xp, xpToNextLevel: xpToNextLevel(level), leveledUp,
-    hp: finalHp, damagePct: Math.round(damagePct * 10) / 10,
-    ...(skillFired  ? { skillFired }      : {}),
+    hp: finalHp, mana: finalMana, damagePct: Math.round(damagePct * 10) / 10,
+    skillsFired: firedSkills,
+    hpPotionUsed, manaPotionUsed,
     ...(skillDropOut ? { skillDrop: skillDropOut } : {}),
     ...(killThisTick ? {
       totalKillsInZone, bonusPercent, killsToNextBonus,
-      lootDrop, autoSalvaged,
+      lootDrop, autoSalvaged, goldGained: totalGoldGained,
       ...(spiritShards !== null ? { spiritShards } : {}),
     } : {}),
   });

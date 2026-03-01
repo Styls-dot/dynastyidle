@@ -7,6 +7,7 @@ import ZoneDetail     from './components/ZoneDetail';
 import ZoneActivity   from './components/ZoneActivity';
 import InventoryPanel from './components/InventoryPanel';
 import CharacterView  from './components/CharacterView';
+import ShopPanel      from './components/ShopPanel';
 
 const TICK_MS        = 2500;
 const HEARTBEAT_MS   = 30_000;
@@ -44,7 +45,12 @@ export default function App() {
   const [enemies,             setEnemies]             = useState([]);
   const [lastHit,             setLastHit]             = useState({ ts: 0, damagePct: 0 });
   const [learnedSkills,       setLearnedSkills]       = useState([]);
-  const [activeSkillId,       setActiveSkillId]       = useState(null);
+  const [activeSkillIds,      setActiveSkillIds]      = useState([]);
+  const [gold,                setGold]                = useState(0);
+  const [hpPotionCount,       setHpPotionCount]       = useState(0);
+  const [manaPotionCount,     setManaPotionCount]     = useState(0);
+  const [hpPotionThreshold,   setHpPotionThreshold]   = useState(30);
+  const [manaPotionThreshold, setManaPotionThreshold] = useState(30);
 
   const activeZoneIdRef        = useRef(null);
   const viewedIdRef            = useRef(null);
@@ -91,7 +97,10 @@ export default function App() {
     setSpiritShards(0);
     setOfflineProgress(null);
     setLearnedSkills([]);
-    setActiveSkillId(null);
+    setActiveSkillIds([]);
+    setGold(0);
+    setHpPotionCount(0);
+    setManaPotionCount(0);
   }
 
   // ── recovery countdown ────────────────────────────────────────────────────
@@ -114,6 +123,11 @@ export default function App() {
       setPlayer(p);
       setSpiritShards(p.spiritShards ?? 0);
       setAutoSalvageRarities(p.autoSalvageRarities ?? []);
+      setGold(p.gold ?? 0);
+      setHpPotionCount(p.hpPotionCount ?? 0);
+      setManaPotionCount(p.manaPotionCount ?? 0);
+      setHpPotionThreshold(p.hpPotionThreshold ?? 30);
+      setManaPotionThreshold(p.manaPotionThreshold ?? 30);
       if (p.recoveryUntil > Date.now()) {
         setRecovering(true);
         setRecoveryEnd(p.recoveryUntil);
@@ -130,9 +144,9 @@ export default function App() {
   // ── load skills ───────────────────────────────────────────────────────────
   const loadSkills = useCallback(async () => {
     try {
-      const { skills, activeSkillId: aid } = await api.getSkills();
+      const { skills, activeSkillIds: aids } = await api.getSkills();
       setLearnedSkills(skills);
-      setActiveSkillId(aid);
+      setActiveSkillIds(aids ?? []);
     } catch (e) { console.error(e); }
   }, []);
 
@@ -188,7 +202,9 @@ export default function App() {
         const tick = await api.combatTick(zoneId, selectedMonsterIdRef.current);
 
         // HP / recovery state
-        setPlayer(prev => prev ? { ...prev, level: tick.playerLevel, xp: tick.playerXp, xpToNextLevel: tick.xpToNextLevel, hp: tick.hp ?? prev.hp } : prev);
+        setPlayer(prev => prev ? { ...prev, level: tick.playerLevel, xp: tick.playerXp, xpToNextLevel: tick.xpToNextLevel, hp: tick.hp ?? prev.hp, mana: tick.mana ?? prev.mana } : prev);
+        if (tick.hpPotionUsed)   setHpPotionCount(p => Math.max(0, p - 1));
+        if (tick.manaPotionUsed) setManaPotionCount(p => Math.max(0, p - 1));
 
         if (tick.recovering) {
           setRecovering(true);
@@ -211,13 +227,13 @@ export default function App() {
         if (tick.enemies) setEnemies(tick.enemies);
         setLastHit({ ts: Date.now(), damagePct: tick.damagePct ?? 0 });
 
-        // Skill fired this tick
-        if (tick.skillFired) {
-          setCombatLog(prev => [{
+        // Skills fired this tick (multiple possible)
+        if (tick.skillsFired?.length) {
+          const entries = tick.skillsFired.map(sf => ({
             id: crypto.randomUUID(), ts: Date.now(), type: 'skill-fire',
-            skillName: tick.skillFired.name, targetsHit: tick.skillFired.targetsHit,
-            hpRestore: tick.skillFired.hpRestore ?? null,
-          }, ...prev].slice(0, MAX_LOG));
+            skillName: sf.name, targetsHit: sf.targetsHit, hpRestore: sf.hpRestore ?? null,
+          }));
+          setCombatLog(prev => [...entries, ...prev].slice(0, MAX_LOG));
         }
 
         // Skill drop this tick
@@ -250,6 +266,8 @@ export default function App() {
             });
             setInventory(prev => [{ ...l, equippedSlot: null, obtainedAt: Date.now(), plus_level: 0 }, ...prev]);
           }
+
+          if (tick.goldGained) setGold(g => g + tick.goldGained);
 
           if (tick.autoSalvaged) {
             const s = tick.autoSalvaged;
@@ -310,9 +328,13 @@ export default function App() {
   }
 
   async function handleToggleSkill(skillId) {
-    const newId = activeSkillId === skillId ? null : skillId;
-    setActiveSkillId(newId);
-    try { await api.setActiveSkill(newId); } catch (e) { console.error(e); }
+    setActiveSkillIds(prev =>
+      prev.includes(skillId) ? prev.filter(id => id !== skillId) : [...prev, skillId]
+    );
+    try {
+      const { activeSkillIds: updated } = await api.toggleSkill(skillId);
+      setActiveSkillIds(updated);
+    } catch (e) { console.error(e); }
   }
 
   async function handleUpdateSkillRules(skillId, rules) {
@@ -372,7 +394,9 @@ export default function App() {
         <span className="topbar-sep">·</span>
         <button className={`nav-tab${view === 'zones'     ? ' active' : ''}`} onClick={() => setView('zones')}>ZONES</button>
         <button className={`nav-tab${view === 'character' ? ' active' : ''}`} onClick={() => setView('character')}>CHARACTER</button>
+        <button className={`nav-tab${view === 'shop'      ? ' active' : ''}`} onClick={() => setView('shop')}>SHOP</button>
         <span style={{ flex: 1 }} />
+        <span className="topbar-gold">⬡ {gold.toLocaleString()}</span>
         <span className="topbar-shards">◆ {spiritShards.toLocaleString()}</span>
         <button className="btn-inventory" onClick={() => setShowInventory(true)}>
           BAG ({bagCount})
@@ -389,7 +413,16 @@ export default function App() {
       />
 
       <div className="main">
-        {view === 'character'
+        {view === 'shop'
+          ? <ShopPanel
+              gold={gold} setGold={setGold}
+              hpPotionCount={hpPotionCount}   setHpPotionCount={setHpPotionCount}
+              manaPotionCount={manaPotionCount} setManaPotionCount={setManaPotionCount}
+              hpPotionThreshold={hpPotionThreshold}   setHpPotionThreshold={setHpPotionThreshold}
+              manaPotionThreshold={manaPotionThreshold} setManaPotionThreshold={setManaPotionThreshold}
+              inventory={inventory} onSellItem={loadInventory}
+            />
+          : view === 'character'
           ? <CharacterView player={player} inventory={inventory} zones={zones} />
           : <div className="skills-layout">
               <nav className="skill-nav">
@@ -434,7 +467,7 @@ export default function App() {
                     recovering={recovering}
                     recoverySecs={recoverySecs}
                     learnedSkills={learnedSkills}
-                    activeSkillId={activeSkillId}
+                    activeSkillIds={activeSkillIds}
                     onToggleSkill={handleToggleSkill}
                     onUpdateSkillRules={handleUpdateSkillRules}
                   />
