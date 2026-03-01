@@ -5,7 +5,33 @@ module.exports = {
     name:        'Tempest Slash',
     description: 'Channel qi into a sweeping strike that hits all enemies simultaneously.',
     icon:        '🌀',
-    cooldownMs:  10000,   // 10 seconds
-    type:        'aoe',   // damages all enemies in the queue
+    cooldownMs:  10000,
+    type:        'aoe',
+  },
+  'iron-body': {
+    id:          'iron-body',
+    name:        'Iron Body',
+    description: 'Draw ambient qi inward to mend wounds, restoring a portion of your vital essence.',
+    icon:        '🛡',
+    cooldownMs:  12000,
+    type:        'heal',
+    healAmount:  20,      // restores 20 HP (player HP is stored as 0-100)
+  },
+  'soul-sever': {
+    id:          'soul-sever',
+    name:        'Soul Sever',
+    description: 'Focus all qi into a single devastating strike against the foremost enemy.',
+    icon:        '⚡',
+    cooldownMs:  6000,
+    type:        'single',
+    dmgMult:     2.5,     // multiplier on normal player attack
+  },
+  'five-element-palm': {
+    id:          'five-element-palm',
+    name:        'Five-Element Palm',
+    description: 'Unleash all five elemental forces simultaneously, bypassing every enemy\'s defenses.',
+    icon:        '☯',
+    cooldownMs:  18000,
+    type:        'aoe-pierce', // AOE that ignores enemy def
   },
 };

@@ -204,6 +204,13 @@ router.post('/:id/combat-tick', (req, res) => {
   });
   const skillFired = firedSkills[0] ?? null;
 
+  // Apply healing from heal-type skills
+  let finalHp = newHp;
+  if (skillFired?.hpRestore) {
+    finalHp = Math.min(100, newHp + skillFired.hpRestore);
+    db.prepare('UPDATE player SET hp=? WHERE id=?').run(finalHp, playerId);
+  }
+
   let killThisTick = false, killedEnemyName = null, xpGained = 0;
   let lootDrop = null, autoSalvaged = null, spiritShards = null;
   let totalKillsInZone, bonusPercent, killsToNextBonus;
@@ -311,7 +318,7 @@ router.post('/:id/combat-tick', (req, res) => {
     killThisTick, killedEnemyName, xpGained,
     enemies,
     playerLevel: level, playerXp: xp, xpToNextLevel: xpToNextLevel(level), leveledUp,
-    hp: newHp, damagePct: Math.round(damagePct * 10) / 10,
+    hp: finalHp, damagePct: Math.round(damagePct * 10) / 10,
     ...(skillFired  ? { skillFired }      : {}),
     ...(skillDropOut ? { skillDrop: skillDropOut } : {}),
     ...(killThisTick ? {

@@ -216,6 +216,7 @@ export default function App() {
           setCombatLog(prev => [{
             id: crypto.randomUUID(), ts: Date.now(), type: 'skill-fire',
             skillName: tick.skillFired.name, targetsHit: tick.skillFired.targetsHit,
+            hpRestore: tick.skillFired.hpRestore ?? null,
           }, ...prev].slice(0, MAX_LOG));
         }
 

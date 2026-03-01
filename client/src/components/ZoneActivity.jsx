@@ -42,7 +42,10 @@ export default function ZoneActivity({ zone, combatLog }) {
                 </div>
               ) : entry.type === 'skill-fire' ? (
                 <div className="event-msg event-skill-fire">
-                  🌀 {entry.skillName} — hit {entry.targetsHit} target{entry.targetsHit !== 1 ? 's' : ''}
+                  {entry.hpRestore
+                    ? `${entry.skillName} — restored ${entry.hpRestore} HP`
+                    : `🌀 ${entry.skillName} — hit ${entry.targetsHit} target${entry.targetsHit !== 1 ? 's' : ''}`
+                  }
                 </div>
               ) : entry.type === 'loot' ? (
                 <div className="event-msg" style={{ color: RARITY_COLOR[entry.rarity] || RARITY_COLOR.common }}>

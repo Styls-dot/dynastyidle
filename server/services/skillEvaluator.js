@@ -16,10 +16,10 @@
  * @param {object}   params.state           - { queue: [{...monster, currentHp}], queueIdx }
  * @param {number}   params.now             - Date.now() at tick start
  * @param {number}   params.playerAtk       - computed player attack value (2 + level*3 + atkBonus)
- * @param {number}   params.newHp           - player HP after normal damage/regen this tick
+ * @param {number}   params.newHp           - player HP after normal damage/regen this tick (0-100)
  * @param {Map}      params.cooldownMap     - Map<'playerId:skillId', lastFiredMs> (mutated in place)
  * @param {string}   params.playerId
- * @returns {{ skillId: string, name: string, targetsHit: number }[]}
+ * @returns {{ skillId: string, name: string, targetsHit: number, hpRestore?: number }[]}
  */
 function evaluateSkills({
   activeSkillIds,
@@ -56,6 +56,7 @@ function evaluateSkills({
     const aliveCount = aliveEnemies.length;
 
     // ── Evaluate trigger conditions ──────────────────────────────────────────
+    // newHp is stored as 0-100 (a percentage), so hpBelow/hpAbove are comparable directly.
     const passTargets = aliveCount >= (rules.minTargets ?? 1);
     const passHpBelow = rules.hpBelow == null || newHp < rules.hpBelow;
     const passHpAbove = rules.hpAbove == null || newHp >= rules.hpAbove;
@@ -66,13 +67,33 @@ function evaluateSkills({
     cooldownMap.set(cdKey, now);
 
     if (skillDef.type === 'aoe') {
+      // Hit all alive enemies with normal damage formula
       for (const enemy of aliveEnemies) {
         enemy.currentHp -= Math.max(1, Math.round(playerAtk - enemy.def * 0.3));
       }
       fired.push({ skillId, name: skillDef.name, targetsHit: aliveCount });
-    }
 
-    // Future skill types (buff, dot, single-target, summon, etc.) handled here.
+    } else if (skillDef.type === 'aoe-pierce') {
+      // Hit all alive enemies ignoring their defense
+      for (const enemy of aliveEnemies) {
+        enemy.currentHp -= Math.max(1, Math.round(playerAtk));
+      }
+      fired.push({ skillId, name: skillDef.name, targetsHit: aliveCount });
+
+    } else if (skillDef.type === 'single') {
+      // Heavy single-target hit on the front alive enemy
+      const target = aliveEnemies[0];
+      if (target) {
+        const mult = skillDef.dmgMult ?? 2;
+        target.currentHp -= Math.max(1, Math.round(playerAtk * mult - target.def * 0.3));
+        fired.push({ skillId, name: skillDef.name, targetsHit: 1 });
+      }
+
+    } else if (skillDef.type === 'heal') {
+      // Restore HP to the player (caller applies this to newHp and writes to DB)
+      const hpRestore = skillDef.healAmount ?? 15;
+      fired.push({ skillId, name: skillDef.name, targetsHit: 0, hpRestore });
+    }
   }
 
   return fired;

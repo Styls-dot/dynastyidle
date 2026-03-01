@@ -139,14 +139,14 @@ export default function ZoneDetail({ zone, player, monsters, selectedMonsterId, 
                             onChange={v => onUpdateSkillRules(skill.id, { ...rules, minTargets: v })}
                           />
                           <RuleStepper
-                            label="HP below %"
+                            label="Your HP below %"
                             value={rules.hpBelow ?? 100}
                             min={1}
                             max={100}
                             onChange={v => onUpdateSkillRules(skill.id, { ...rules, hpBelow: v })}
                           />
                           <RuleStepper
-                            label="HP above %"
+                            label="Your HP above %"
                             value={rules.hpAbove ?? 1}
                             min={1}
                             max={100}
