@@ -33,6 +33,8 @@ export default function App() {
   const [skillView,           setSkillView]           = useState('combat');
   const [zoneMonsters,        setZoneMonsters]        = useState([]);
   const [selectedMonsterId,   setSelectedMonsterId]   = useState(null);
+  const [enemies,             setEnemies]             = useState([]);
+  const [lastHit,             setLastHit]             = useState({ ts: 0, damagePct: 0 });
 
   const activeZoneIdRef        = useRef(null);
   const viewedIdRef            = useRef(null);
@@ -127,6 +129,7 @@ export default function App() {
         if (tick.died) {
           setRecovering(true);
           setRecoveryEnd(tick.recoveryUntil);
+          setEnemies([]);
           setCombatLog(prev => [{
             id: crypto.randomUUID(), ts: Date.now(), type: 'death',
             enemyName: '—', xpGained: 0, leveledUp: false, playerLevel: tick.playerLevel, damagePct: 0,
@@ -136,47 +139,53 @@ export default function App() {
 
         setRecovering(false);
 
-        // Kill log
-        const killEntry = {
-          id: crypto.randomUUID(), ts: Date.now(), type: 'kill',
-          enemyName: tick.enemyName, enemies: tick.enemies, mobCount: tick.mobCount ?? 1,
-          xpGained: tick.xpGained,
-          leveledUp: tick.leveledUp, playerLevel: tick.playerLevel,
-          damagePct: tick.damagePct,
-        };
-        setLastKill({ enemyName: tick.enemyName, xpGained: tick.xpGained, leveledUp: tick.leveledUp });
+        // Always update enemy group and per-tick damage float
+        if (tick.enemies) setEnemies(tick.enemies);
+        setLastHit({ ts: Date.now(), damagePct: tick.damagePct ?? 0 });
 
-        const newEntries = [killEntry];
+        // Only process kills when one happens
+        if (tick.killThisTick) {
+          const killEntry = {
+            id: crypto.randomUUID(), ts: Date.now(), type: 'kill',
+            enemyName: tick.killedEnemyName, mobCount: 1,
+            xpGained: tick.xpGained,
+            leveledUp: tick.leveledUp, playerLevel: tick.playerLevel,
+            damagePct: tick.damagePct,
+          };
+          setLastKill({ enemyName: tick.killedEnemyName, xpGained: tick.xpGained, leveledUp: tick.leveledUp, playerLevel: tick.playerLevel, ts: Date.now() });
 
-        // Loot log + inventory
-        if (tick.lootDrop) {
-          const { lootDrop: l } = tick;
-          newEntries.unshift({
-            id: crypto.randomUUID(), ts: Date.now(), type: 'loot',
-            itemName: l.name, itemType: l.type, rarity: l.rarity, autoSalvaged: false,
-          });
-          setInventory(prev => [{ ...l, equippedSlot: null, obtainedAt: Date.now(), plus_level: 0 }, ...prev]);
+          const newEntries = [killEntry];
+
+          // Loot log + inventory
+          if (tick.lootDrop) {
+            const { lootDrop: l } = tick;
+            newEntries.unshift({
+              id: crypto.randomUUID(), ts: Date.now(), type: 'loot',
+              itemName: l.name, itemType: l.type, rarity: l.rarity, autoSalvaged: false,
+            });
+            setInventory(prev => [{ ...l, equippedSlot: null, obtainedAt: Date.now(), plus_level: 0 }, ...prev]);
+          }
+
+          // Auto-salvaged loot
+          if (tick.autoSalvaged) {
+            const s = tick.autoSalvaged;
+            setSpiritShards(tick.spiritShards);
+            newEntries.unshift({
+              id: crypto.randomUUID(), ts: Date.now(), type: 'loot',
+              itemName: s.name, itemType: s.type, rarity: s.rarity,
+              autoSalvaged: true, shards: s.shards,
+            });
+          }
+
+          setCombatLog(prev => [...newEntries, ...prev].slice(0, MAX_LOG));
+
+          // Sync zone stats — only update detail panel if viewing the active zone
+          const zoneStats = { kills: tick.totalKillsInZone, bonusPercent: tick.bonusPercent, killsToNextBonus: tick.killsToNextBonus };
+          if (viewedIdRef.current === zoneId) {
+            setZoneDetail(prev => prev ? { ...prev, playerStats: zoneStats } : prev);
+          }
+          setZones(prev => prev.map(z => z.id === zoneId ? { ...z, playerStats: zoneStats } : z));
         }
-
-        // Auto-salvaged loot
-        if (tick.autoSalvaged) {
-          const s = tick.autoSalvaged;
-          setSpiritShards(tick.spiritShards);
-          newEntries.unshift({
-            id: crypto.randomUUID(), ts: Date.now(), type: 'loot',
-            itemName: s.name, itemType: s.type, rarity: s.rarity,
-            autoSalvaged: true, shards: s.shards,
-          });
-        }
-
-        setCombatLog(prev => [...newEntries, ...prev].slice(0, MAX_LOG));
-
-        // Sync zone stats — only update detail panel if viewing the active zone
-        const zoneStats = { kills: tick.totalKillsInZone, bonusPercent: tick.bonusPercent, killsToNextBonus: tick.killsToNextBonus };
-        if (viewedIdRef.current === zoneId) {
-          setZoneDetail(prev => prev ? { ...prev, playerStats: zoneStats } : prev);
-        }
-        setZones(prev => prev.map(z => z.id === zoneId ? { ...z, playerStats: zoneStats } : z));
 
       } catch (e) { console.error('combat tick failed', e); }
     }, TICK_MS);
@@ -205,6 +214,7 @@ export default function App() {
     setSelectedMonsterId(monsterId);
     setCombatLog([]);
     setLastKill(null);
+    setEnemies([]);
     try {
       const [detail, monsters] = await Promise.all([
         api.selectZone(id),
@@ -282,6 +292,7 @@ export default function App() {
                   />
                   <ZoneDetail
                     zone={zoneDetail}
+                    player={player}
                     monsters={zoneMonsters}
                     selectedMonsterId={selectedMonsterId}
                     onSelectMonster={setSelectedMonsterId}
@@ -290,6 +301,8 @@ export default function App() {
                     onStatsUpdate={handleStatsUpdate}
                     fighting={fighting && !recovering}
                     lastKill={lastKill}
+                    lastHit={lastHit}
+                    enemies={enemies}
                     recovering={recovering}
                     recoverySecs={recoverySecs}
                   />

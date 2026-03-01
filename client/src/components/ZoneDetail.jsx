@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { api } from '../api';
 import MonsterRoster from './MonsterRoster';
+import CombatDisplay from './CombatDisplay';
 
-export default function ZoneDetail({ zone, monsters, selectedMonsterId, onSelectMonster, onEnterZone, isActiveZone, onStatsUpdate, fighting, lastKill, recovering, recoverySecs }) {
+export default function ZoneDetail({ zone, player, monsters, selectedMonsterId, onSelectMonster, onEnterZone, isActiveZone, onStatsUpdate, fighting, lastKill, lastHit, enemies, recovering, recoverySecs }) {
   const [adding, setAdding] = useState(false);
 
   if (!zone) {
@@ -45,13 +46,22 @@ export default function ZoneDetail({ zone, monsters, selectedMonsterId, onSelect
         </div>
         <div className="zone-detail-level">LEVEL RANGE  {zone.minLevel} – {zone.maxLevel}</div>
 
-        {/* Last kill flash — only when actively fighting here */}
-        {isActiveZone && !recovering && lastKill && (
-          <div className="last-kill-row">
-            <span className="last-kill-enemy">{lastKill.enemyName}</span>
-            <span className="last-kill-xp">+{lastKill.xpGained} XP</span>
-            {lastKill.leveledUp && <span className="levelup-flash">LEVEL UP!</span>}
-          </div>
+        {/* Combat display */}
+        {isActiveZone && (fighting || recovering) && (
+          <CombatDisplay
+            player={player}
+            enemies={enemies}
+            lastKill={lastKill}
+            lastHit={lastHit}
+            fighting={fighting}
+            recovering={recovering}
+            recoverySecs={recoverySecs}
+          />
+        )}
+
+        {/* Level-up flash */}
+        {isActiveZone && lastKill?.leveledUp && (
+          <div className="levelup-banner">LEVEL UP  →  LV {lastKill.playerLevel ?? player?.level}</div>
         )}
 
         {/* Description */}

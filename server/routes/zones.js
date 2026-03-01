@@ -10,6 +10,30 @@ const ACTIVE_WINDOW_MS = 120_000;
 const INVENTORY_CAP    = 50;
 const RECOVERY_MS      = 15_000;
 
+// ── in-memory combat state per player ────────────────────────────────────────
+// { playerId: { zoneId, targetKey, queue: [{...monster, currentHp}], queueIdx } }
+const playerCombat = new Map();
+
+function makeEnemyQueue(zoneId, monsterId) {
+  const pool = MONSTERS[zoneId] || [];
+  if (!pool.length) return [];
+
+  if (monsterId) {
+    const m = pool.find(m => m.id === monsterId);
+    if (!m) return [];
+    return [{ ...m, currentHp: m.hp }];
+  }
+
+  // Hunt All: 1 guaranteed, then 50% chain for each additional (up to pool size)
+  const pick = () => {
+    const m = pool[Math.floor(Math.random() * pool.length)];
+    return { ...m, currentHp: m.hp };
+  };
+  const queue = [pick()];
+  while (queue.length < pool.length && Math.random() < 0.5) queue.push(pick());
+  return queue;
+}
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 function activeCount(db, zoneId) {
@@ -81,6 +105,7 @@ router.post('/:id/select', (req, res) => {
   if (!zone) return res.status(404).json({ error: 'Zone not found' });
 
   ensurePlayer(db, playerId);
+  playerCombat.delete(playerId); // reset combat state on zone entry
   db.prepare(`INSERT INTO player_presence (playerId,zoneId,lastSeen) VALUES (?,?,?) ON CONFLICT(playerId) DO UPDATE SET zoneId=excluded.zoneId,lastSeen=excluded.lastSeen`).run(playerId, zone.id, Date.now());
   db.prepare(`INSERT INTO zone_events (id,zoneId,createdAt,type,message) VALUES (?,?,?,?,?)`).run(uuidv4(), zone.id, Date.now(), 'enter', `A cultivator has entered ${zone.name}.`);
   const events = db.prepare('SELECT * FROM zone_events WHERE zoneId=? ORDER BY createdAt DESC LIMIT 10').all(zone.id);
@@ -115,95 +140,116 @@ router.post('/:id/combat-tick', (req, res) => {
   // ── equipment bonuses ──
   const { atkBonus, defBonus, xpBonusPct } = getEquipmentBonuses(db, playerId);
 
-  // ── resolve target monster (specific or random) ──
-  const zoneMonsters = MONSTERS[zone.id] || [];
-  const monster = monsterId ? (zoneMonsters.find(m => m.id === monsterId) || null) : null;
+  // ── resolve or initialize combat state ──
+  const targetKey = monsterId || 'hunt-all';
+  let state = playerCombat.get(playerId);
 
-  // ── roll encounter group ──
-  // Targeted: always 1 specific monster.
-  // Hunt All: 100% first mob, then 50% chain for each additional mob.
-  const pool = ENEMIES[zone.id] || ['Wandering Specter'];
-  let enemies;
-  if (monster) {
-    enemies = [monster.name];
-  } else {
-    enemies = [pool[Math.floor(Math.random() * pool.length)]];
-    while (Math.random() < 0.5) {
-      enemies.push(pool[Math.floor(Math.random() * pool.length)]);
+  if (!state || state.zoneId !== zone.id || state.targetKey !== targetKey || !state.queue.length || state.queueIdx >= state.queue.length) {
+    const q = makeEnemyQueue(zone.id, monsterId);
+    if (!q.length) {
+      // Fallback: no monsters defined for zone
+      return res.json({ hp: currentHp, playerLevel: player.level, playerXp: player.xp, xpToNextLevel: xpToNextLevel(player.level), leveledUp: false, killThisTick: false, damagePct: 0, currentEnemy: null, queuedEnemies: [] });
     }
+    state = { zoneId: zone.id, targetKey, queue: q, queueIdx: 0 };
+    playerCombat.set(playerId, state);
   }
-  const mobCount = enemies.length;
 
-  // ── HP calculation ──
-  const effectiveLevel = monster ? monster.level : zone.minLevel;
-  const baseDmgPct   = Math.max(0, effectiveLevel * 0.2 + 2 - player.level * 0.05);
-  const defReduction = Math.min(0.75, defBonus * 0.02);
-  const perMobDmg    = Math.max(0, baseDmgPct * (1 - defReduction));
-  const damagePct    = perMobDmg * mobCount;
-  const regenPct     = Math.min(5, Math.max(0.3, (player.level - effectiveLevel) * 0.25 + 0.5));
-  const newHp        = Math.max(0, Math.min(100, currentHp - damagePct + regenPct));
+  const frontEnemy     = state.queue[state.queueIdx];
+  const activeEnemies  = state.queue.slice(state.queueIdx);
+
+  // ── player attacks frontmost enemy ──
+  const playerAtk  = 2 + player.level * 3 + atkBonus;
+  const dmgToEnemy = Math.max(1, Math.round(playerAtk - frontEnemy.def * 0.3));
+  frontEnemy.currentHp -= dmgToEnemy;
+
+  // ── ALL active enemies attack player ──
+  const defReduction  = Math.min(0.75, defBonus * 0.02);
+  const damagePct     = activeEnemies.reduce((sum, e) => sum + Math.max(0, e.atk * 0.4 * (1 - defReduction)), 0);
+  const regenPct      = Math.max(0.3, Math.min(8, (player.level - frontEnemy.level + 3) * 0.6));
+  const newHp         = Math.max(0, Math.min(100, currentHp - damagePct + regenPct));
 
   // ── death ──
   if (newHp <= 0) {
     const recoveryUntil = now + RECOVERY_MS;
     db.prepare('UPDATE player SET hp=0,recoveryUntil=? WHERE id=?').run(recoveryUntil, playerId);
+    playerCombat.delete(playerId);
     return res.json({ died: true, recoveryUntil, hp: 0, playerLevel: player.level, playerXp: player.xp, xpToNextLevel: xpToNextLevel(player.level) });
   }
 
   db.prepare('UPDATE player SET hp=? WHERE id=?').run(newHp, playerId);
 
-  // ── XP ──
-  const baseXp    = monster ? monster.xp : Math.max(5, zone.minLevel + 5);
-  const xpMult    = 1 + (atkBonus / 100) + (xpBonusPct / 100);
-  const xpGained  = Math.round(baseXp * mobCount * xpMult);
+  let killThisTick = false, killedEnemyName = null, xpGained = 0;
+  let lootDrop = null, autoSalvaged = null, spiritShards = null;
+  let totalKillsInZone, bonusPercent, killsToNextBonus;
+  let { level, xp } = player, leveledUp = false;
 
-  // ── display name ──
-  const enemyName = mobCount === 1
-    ? enemies[0]
-    : `${enemies[0]} +${mobCount - 1}`;
+  if (frontEnemy.currentHp <= 0) {
+    killThisTick = true;
+    killedEnemyName = frontEnemy.name;
 
-  let { level, xp } = player;
-  xp += xpGained;
-  let leveledUp = false;
-  while (xp >= xpToNextLevel(level) && level < 100) { xp -= xpToNextLevel(level); level++; leveledUp = true; }
-  db.prepare('UPDATE player SET level=?,xp=? WHERE id=?').run(level, xp, playerId);
+    // ── XP ──
+    const existingRow = db.prepare('SELECT kills FROM player_zone_stats WHERE playerId=? AND zoneId=?').get(playerId, zone.id);
+    const bonusPct   = existingRow ? Math.floor(existingRow.kills / 1000) : 0;
+    const xpMult     = 1 + (atkBonus / 100) + (xpBonusPct / 100);
+    xpGained = Math.round(frontEnemy.xp * xpMult);
 
-  // ── kill count ──
-  db.prepare(`INSERT INTO player_zone_stats (playerId,zoneId,kills) VALUES (?,?,?) ON CONFLICT(playerId,zoneId) DO UPDATE SET kills=kills+?`).run(playerId, zone.id, mobCount, mobCount);
-  const { kills } = db.prepare('SELECT kills FROM player_zone_stats WHERE playerId=? AND zoneId=?').get(playerId, zone.id);
-  const bonusPct  = Math.floor(kills / 1000);
+    xp += xpGained;
+    while (xp >= xpToNextLevel(level) && level < 100) { xp -= xpToNextLevel(level); level++; leveledUp = true; }
+    db.prepare('UPDATE player SET level=?,xp=? WHERE id=?').run(level, xp, playerId);
 
-  // ── loot ──
-  let lootDrop    = null;
-  let autoSalvaged = null;
-  let spiritShards = null;
-  const loot = rollLoot(zone.id, level, bonusPct);
-  if (loot) {
-    const autoRarities = JSON.parse(player.auto_salvage_rarities || '[]');
-    if (autoRarities.includes(loot.rarity)) {
-      // Auto-salvage: add shards, skip inventory
-      const shards = SHARD_VALUES[loot.rarity] || 1;
-      db.prepare('UPDATE player SET spirit_shards = spirit_shards + ? WHERE id = ?').run(shards, playerId);
-      spiritShards = db.prepare('SELECT spirit_shards FROM player WHERE id=?').get(playerId).spirit_shards;
-      autoSalvaged = { name: loot.name, rarity: loot.rarity, type: loot.type, shards };
-    } else {
-      const invCount = db.prepare('SELECT COUNT(*) as c FROM player_inventory WHERE playerId=?').get(playerId).c;
-      if (invCount < INVENTORY_CAP) {
-        const itemId = uuidv4();
-        db.prepare(`INSERT INTO player_inventory (id,playerId,name,type,rarity,stats,zoneId,equippedSlot,obtainedAt,plus_level) VALUES (?,?,?,?,?,?,?,NULL,?,0)`)
-          .run(itemId, playerId, loot.name, loot.type, loot.rarity, JSON.stringify(loot.stats), zone.id, now);
-        lootDrop = { id: itemId, ...loot };
+    // ── kill count ──
+    db.prepare(`INSERT INTO player_zone_stats (playerId,zoneId,kills) VALUES (?,?,1) ON CONFLICT(playerId,zoneId) DO UPDATE SET kills=kills+1`).run(playerId, zone.id);
+    const killRow = db.prepare('SELECT kills FROM player_zone_stats WHERE playerId=? AND zoneId=?').get(playerId, zone.id);
+    totalKillsInZone = killRow.kills;
+    bonusPercent     = Math.floor(totalKillsInZone / 1000);
+    killsToNextBonus = 1000 - (totalKillsInZone % 1000);
+
+    // ── loot ──
+    const loot = rollLoot(zone.id, level, bonusPercent);
+    if (loot) {
+      const autoRarities = JSON.parse(player.auto_salvage_rarities || '[]');
+      if (autoRarities.includes(loot.rarity)) {
+        const shards = SHARD_VALUES[loot.rarity] || 1;
+        db.prepare('UPDATE player SET spirit_shards = spirit_shards + ? WHERE id = ?').run(shards, playerId);
+        spiritShards = db.prepare('SELECT spirit_shards FROM player WHERE id=?').get(playerId).spirit_shards;
+        autoSalvaged = { name: loot.name, rarity: loot.rarity, type: loot.type, shards };
+      } else {
+        const invCount = db.prepare('SELECT COUNT(*) as c FROM player_inventory WHERE playerId=?').get(playerId).c;
+        if (invCount < INVENTORY_CAP) {
+          const itemId = uuidv4();
+          db.prepare(`INSERT INTO player_inventory (id,playerId,name,type,rarity,stats,zoneId,equippedSlot,obtainedAt,plus_level) VALUES (?,?,?,?,?,?,?,NULL,?,0)`)
+            .run(itemId, playerId, loot.name, loot.type, loot.rarity, JSON.stringify(loot.stats), zone.id, now);
+          lootDrop = { id: itemId, ...loot };
+        }
       }
+    }
+
+    // ── advance queue ──
+    state.queueIdx++;
+    if (state.queueIdx >= state.queue.length) {
+      state.queue   = makeEnemyQueue(zone.id, monsterId);
+      state.queueIdx = 0;
     }
   }
 
+  // Build enemies array: all currently active (after potential kill/advance)
+  const enemies = state.queue.slice(state.queueIdx).map((e, i) => ({
+    id: e.id, name: e.name,
+    hp: e.currentHp, maxHp: e.hp,
+    level: e.level, atk: e.atk, def: e.def,
+    active: i === 0,
+  }));
+
   res.json({
-    enemyName, enemies, mobCount, xpGained,
+    killThisTick, killedEnemyName, xpGained,
+    enemies,
     playerLevel: level, playerXp: xp, xpToNextLevel: xpToNextLevel(level), leveledUp,
-    hp: newHp, damagePct: Math.round(damagePct * 10) / 10, regenPct: Math.round(regenPct * 10) / 10,
-    totalKillsInZone: kills, bonusPercent: bonusPct, killsToNextBonus: 1000 - (kills % 1000),
-    lootDrop, autoSalvaged,
-    ...(spiritShards !== null ? { spiritShards } : {}),
+    hp: newHp, damagePct: Math.round(damagePct * 10) / 10,
+    ...(killThisTick ? {
+      totalKillsInZone, bonusPercent, killsToNextBonus,
+      lootDrop, autoSalvaged,
+      ...(spiritShards !== null ? { spiritShards } : {}),
+    } : {}),
   });
 });
 
