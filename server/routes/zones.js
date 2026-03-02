@@ -245,26 +245,23 @@ router.post('/:id/combat-tick', (req, res) => {
   let totalGoldGained = 0;
   let { level, xp } = player, leveledUp = false;
 
-  // Parsed once — used by both the main kill and the AOE sweep below
+  // Parsed once — used for every kill this tick
   const autoRarities = JSON.parse(player.auto_salvage_rarities || '[]');
   const xpMult       = 1 + (atkBonus / 100) + (xpBonusPct / 100);
 
   // ── helper: award XP + kill count + loot for one killed enemy ──────────────
   const processKill = (enemy) => {
-    // XP
     const gained = Math.round(enemy.xp * xpMult);
     xpGained += gained;
     xp       += gained;
     while (xp >= xpToNextLevel(level) && level < 100) { xp -= xpToNextLevel(level); level++; leveledUp = true; }
 
-    // Kill count
     db.prepare(`INSERT INTO player_zone_stats (playerId,zoneId,kills) VALUES (?,?,1) ON CONFLICT(playerId,zoneId) DO UPDATE SET kills=kills+1`).run(playerId, zone.id);
     const killRow = db.prepare('SELECT kills FROM player_zone_stats WHERE playerId=? AND zoneId=?').get(playerId, zone.id);
     totalKillsInZone = killRow.kills;
     bonusPercent     = Math.floor(totalKillsInZone / 1000);
     killsToNextBonus = 1000 - (totalKillsInZone % 1000);
 
-    // Loot
     const loot = rollLoot(zone.id, level, bonusPercent);
     if (loot) {
       if (autoRarities.includes(loot.rarity)) {
@@ -283,17 +280,19 @@ router.post('/:id/combat-tick', (req, res) => {
       }
     }
 
-    // Gold drop: enemy.level to 2×enemy.level gold per kill
     totalGoldGained += Math.max(1, Math.round(enemy.level + Math.random() * enemy.level));
   };
 
-  if (frontEnemy.currentHp <= 0) {
+  // ── Process all enemies killed this tick (normal attack + skills) ──────────
+  // Enemies die immediately when their HP hits 0, regardless of queue position.
+  const allCurrent = state.queue.slice(state.queueIdx);
+  const killedNow  = allCurrent.filter(e => e.currentHp <= 0);
+
+  if (killedNow.length > 0) {
     killThisTick    = true;
-    killedEnemyName = frontEnemy.name;
+    killedEnemyName = killedNow[0].name;
 
-    processKill(frontEnemy);
-
-    // ── skill drop (3% chance, only on first kill this tick) ──
+    // ── skill drop (3% chance per kill tick) ──
     let skillDrop = null;
     if (Math.random() < 0.03) {
       const learnedRows = db.prepare('SELECT skillId FROM player_skills WHERE playerId=?').all(playerId);
@@ -306,32 +305,24 @@ router.post('/:id/combat-tick', (req, res) => {
       }
     }
 
-    // ── advance queue past front enemy ──
-    state.queueIdx++;
-    if (state.queueIdx >= state.queue.length) {
-      state.queue    = makeEnemyQueue(zone.id, monsterId);
-      state.queueIdx = 0;
-    }
+    for (const e of killedNow) processKill(e);
 
-    // ── AOE sweep: process any additional enemies already killed by skill ──
-    // Dead enemies (currentHp <= 0) must not linger at 0 HP — clear them now.
-    while (state.queueIdx < state.queue.length && state.queue[state.queueIdx].currentHp <= 0) {
-      processKill(state.queue[state.queueIdx]);
-      state.queueIdx++;
-    }
-    if (state.queueIdx >= state.queue.length) {
-      state.queue    = makeEnemyQueue(zone.id, monsterId);
-      state.queueIdx = 0;
-    }
-
-    // DB write for level/xp + gold once after all kills are processed
+    // DB write for level/xp + gold once after all kills
     db.prepare('UPDATE player SET level=?,xp=? WHERE id=?').run(level, xp, playerId);
     if (totalGoldGained > 0) {
       db.prepare('UPDATE player SET gold = gold + ? WHERE id=?').run(totalGoldGained, playerId);
     }
 
-    if (skillDrop) {
-      Object.assign(state, { _lastSkillDrop: skillDrop });
+    if (skillDrop) Object.assign(state, { _lastSkillDrop: skillDrop });
+
+    // ── Rebuild queue: survivors stay, or start a new wave ──────────────────
+    const aliveNow = allCurrent.filter(e => e.currentHp > 0);
+    if (aliveNow.length > 0) {
+      state.queue    = aliveNow;
+      state.queueIdx = 0;
+    } else {
+      state.queue    = makeEnemyQueue(zone.id, monsterId);
+      state.queueIdx = 0;
     }
   }
 
