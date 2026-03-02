@@ -237,7 +237,7 @@ router.post('/:id/combat-tick', (req, res) => {
   let finalHp   = newHp;
   const finalMana = Math.max(0, newMana - manaSpent);
   const healFired = firedSkills.find(s => s.hpRestore);
-  if (healFired) finalHp = Math.min(100, finalHp + healFired.hpRestore);
+  if (healFired) finalHp = Math.min(maxHpVal, finalHp + healFired.hpRestore);
 
   // Write HP + mana in one statement
   db.prepare('UPDATE player SET hp=?, mana=? WHERE id=?').run(finalHp, finalMana, playerId);
