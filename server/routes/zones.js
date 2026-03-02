@@ -72,7 +72,7 @@ function getEquipmentBonuses(db, playerId) {
     const pl = item.plus_level || 0;
     if (item.equippedSlot === 'weapon')    atkBonus   += (s.atk     || 0) + pl * 3;
     if (item.equippedSlot === 'armor')   { defBonus   += (s.def     || 0) + pl * 2;
-                                           hpBonus    += (s.hp      || 0) + pl * 5; }
+                                           hpBonus    += (s.hp      || 0) + pl * 10; }
     if (item.equippedSlot === 'accessory') xpBonusPct += (s.xpBonus || 0) + pl * 1;
   }
   return { atkBonus, defBonus, xpBonusPct, hpBonus };
