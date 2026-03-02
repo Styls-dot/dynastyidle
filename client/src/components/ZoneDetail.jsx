@@ -13,6 +13,13 @@ function Stepper({ value, min, max, onChange }) {
   );
 }
 
+const SKILL_DESC = {
+  'tempest-slash':     'Deals damage to [ALL] enemies simultaneously. Each target takes [ATK − DEF×0.3] damage — the exact same formula as a normal attack, but applied to every enemy in the group at once. Costs [20] mana · [10]s cooldown.',
+  'iron-body':         'Instantly restores [20] HP. Does not deal damage. Costs [15] mana · [12]s cooldown.',
+  'soul-sever':        'Focuses all qi into a single crushing blow against the front enemy, dealing [ATK×2.5 − DEF×0.3] damage — [2.5×] the strength of a normal attack. Costs [25] mana · [6]s cooldown.',
+  'five-element-palm': 'Channels all five elements to strike [ALL] enemies for [ATK] damage each, completely ignoring their defense. Costs [35] mana · [18]s cooldown.',
+};
+
 function renderDesc(text) {
   if (!text) return null;
   return text.split(/(\[[^\]]+\])/).map((part, i) =>
@@ -143,8 +150,8 @@ export default function ZoneDetail({ zone, player, monsters, selectedMonsterId, 
 
                       {isExpanded && (
                         <div className="skill-row-expand">
-                          {skill.description && (
-                            <div className="skill-expand-desc">{renderDesc(skill.description)}</div>
+                          {(SKILL_DESC[skill.id] || skill.description) && (
+                            <div className="skill-expand-desc">{renderDesc(SKILL_DESC[skill.id] || skill.description)}</div>
                           )}
                           {isActive && (
                             <>
