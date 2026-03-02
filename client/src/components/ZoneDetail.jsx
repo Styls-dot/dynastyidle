@@ -13,6 +13,15 @@ function Stepper({ value, min, max, onChange }) {
   );
 }
 
+function renderDesc(text) {
+  if (!text) return null;
+  return text.split(/(\[[^\]]+\])/).map((part, i) =>
+    part.startsWith('[') && part.endsWith(']')
+      ? <span key={i} className="skill-desc-val">{part.slice(1, -1)}</span>
+      : part
+  );
+}
+
 export default function ZoneDetail({ zone, player, monsters, selectedMonsterId, onSelectMonster, onEnterZone, isActiveZone, onStatsUpdate, fighting, lastKill, lastHit, enemies, recovering, recoverySecs, learnedSkills = [], activeSkillIds = [], onToggleSkill, onUpdateSkillRules, skillCooldowns = {}, hpPotionCount = 0, manaPotionCount = 0, hpPotionThreshold = 30, manaPotionThreshold = 30, onHpThresholdChange, onManaThresholdChange }) {
   const [expandedSkillId, setExpandedSkillId] = useState(null);
 
@@ -117,13 +126,11 @@ export default function ZoneDetail({ zone, player, monsters, selectedMonsterId, 
                           </span>
                         </div>
                         <div className="skill-row-actions">
-                          {isActive && (
-                            <button
-                              className={`skill-gear-btn${isExpanded ? ' open' : ''}`}
-                              title="Conditions"
-                              onClick={() => setExpandedSkillId(isExpanded ? null : skill.id)}
-                            >⚙</button>
-                          )}
+                          <button
+                            className={`skill-gear-btn${isExpanded ? ' open' : ''}`}
+                            title={isActive ? 'Description & Conditions' : 'Description'}
+                            onClick={() => setExpandedSkillId(isExpanded ? null : skill.id)}
+                          >⚙</button>
                           <button
                             className={`skill-toggle-btn${isActive ? ' active' : ''}`}
                             onClick={() => {
@@ -134,26 +141,30 @@ export default function ZoneDetail({ zone, player, monsters, selectedMonsterId, 
                         </div>
                       </div>
 
-                      {isActive && isExpanded && (
+                      {isExpanded && (
                         <div className="skill-row-expand">
                           {skill.description && (
-                            <div className="skill-expand-desc">{skill.description}</div>
+                            <div className="skill-expand-desc">{renderDesc(skill.description)}</div>
                           )}
-                          <div className="skill-expand-row">
-                            <span className="skill-expand-label">Min. enemies</span>
-                            <Stepper value={rules.minTargets ?? 1} min={1} max={6}
-                              onChange={v => onUpdateSkillRules(skill.id, { ...rules, minTargets: v })} />
-                          </div>
-                          <div className="skill-expand-row">
-                            <span className="skill-expand-label">HP below %</span>
-                            <Stepper value={rules.hpBelow ?? 100} min={1} max={100}
-                              onChange={v => onUpdateSkillRules(skill.id, { ...rules, hpBelow: v })} />
-                          </div>
-                          <div className="skill-expand-row">
-                            <span className="skill-expand-label">HP above %</span>
-                            <Stepper value={rules.hpAbove ?? 1} min={1} max={100}
-                              onChange={v => onUpdateSkillRules(skill.id, { ...rules, hpAbove: v })} />
-                          </div>
+                          {isActive && (
+                            <>
+                              <div className="skill-expand-row">
+                                <span className="skill-expand-label">Min. enemies</span>
+                                <Stepper value={rules.minTargets ?? 1} min={1} max={6}
+                                  onChange={v => onUpdateSkillRules(skill.id, { ...rules, minTargets: v })} />
+                              </div>
+                              <div className="skill-expand-row">
+                                <span className="skill-expand-label">HP below %</span>
+                                <Stepper value={rules.hpBelow ?? 100} min={1} max={100}
+                                  onChange={v => onUpdateSkillRules(skill.id, { ...rules, hpBelow: v })} />
+                              </div>
+                              <div className="skill-expand-row">
+                                <span className="skill-expand-label">HP above %</span>
+                                <Stepper value={rules.hpAbove ?? 1} min={1} max={100}
+                                  onChange={v => onUpdateSkillRules(skill.id, { ...rules, hpAbove: v })} />
+                              </div>
+                            </>
+                          )}
                         </div>
                       )}
                     </div>

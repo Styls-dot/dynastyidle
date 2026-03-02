@@ -1713,9 +1713,13 @@ body {
   font-size: 9px;
   color: var(--text-muted);
   line-height: 1.5;
-  padding-bottom: 4px;
+  padding-bottom: 5px;
   border-bottom: 1px solid var(--border-soft);
   margin-bottom: 2px;
+}
+.skill-desc-val {
+  color: var(--jade);
+  font-weight: 600;
 }
 
 .skill-expand-row {

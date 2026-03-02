@@ -3,7 +3,7 @@ module.exports = {
   'tempest-slash': {
     id:          'tempest-slash',
     name:        'Tempest Slash',
-    description: 'Channel qi into a sweeping strike that hits all enemies simultaneously.',
+    description: 'Hits [ALL] enemies for [100%] weapon damage minus [30%] of each target\'s defense. Costs [20] mana. Cooldown [10]s.',
     icon:        '🌀',
     cooldownMs:  10000,
     type:        'aoe',
@@ -12,7 +12,7 @@ module.exports = {
   'iron-body': {
     id:          'iron-body',
     name:        'Iron Body',
-    description: 'Draw ambient qi inward to mend wounds, restoring a portion of your vital essence.',
+    description: 'Restores [20] HP. Costs [15] mana. Cooldown [12]s.',
     icon:        '🛡',
     cooldownMs:  12000,
     type:        'heal',
@@ -22,7 +22,7 @@ module.exports = {
   'soul-sever': {
     id:          'soul-sever',
     name:        'Soul Sever',
-    description: 'Focus all qi into a single devastating strike against the foremost enemy.',
+    description: 'Strikes the front enemy for [250%] weapon damage. Costs [25] mana. Cooldown [6]s.',
     icon:        '⚡',
     cooldownMs:  6000,
     type:        'single',
@@ -32,7 +32,7 @@ module.exports = {
   'five-element-palm': {
     id:          'five-element-palm',
     name:        'Five-Element Palm',
-    description: 'Unleash all five elemental forces simultaneously, bypassing every enemy\'s defenses.',
+    description: 'Hits [ALL] enemies for [100%] weapon damage, completely ignoring their defense. Costs [35] mana. Cooldown [18]s.',
     icon:        '☯',
     cooldownMs:  18000,
     type:        'aoe-pierce',
