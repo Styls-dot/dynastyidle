@@ -323,8 +323,8 @@ export default function InventoryPanel({
         break;
       }
 
-      // Brief pause so UI stays responsive
-      await new Promise(r => setTimeout(r, 200));
+      // Match manual enhance rolling duration
+      await new Promise(r => setTimeout(r, 950));
     }
 
     autoRef.current[itemId] = false;

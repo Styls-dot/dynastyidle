@@ -1709,6 +1709,15 @@ body {
   gap: 4px;
 }
 
+.skill-expand-desc {
+  font-size: 9px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-soft);
+  margin-bottom: 2px;
+}
+
 .skill-expand-row {
   display: flex;
   align-items: center;

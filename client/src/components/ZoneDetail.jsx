@@ -136,6 +136,9 @@ export default function ZoneDetail({ zone, player, monsters, selectedMonsterId, 
 
                       {isActive && isExpanded && (
                         <div className="skill-row-expand">
+                          {skill.description && (
+                            <div className="skill-expand-desc">{skill.description}</div>
+                          )}
                           <div className="skill-expand-row">
                             <span className="skill-expand-label">Min. enemies</span>
                             <Stepper value={rules.minTargets ?? 1} min={1} max={6}
