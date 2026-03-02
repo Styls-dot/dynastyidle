@@ -31,7 +31,10 @@ app.use('/api',           playerRouter);
 
 // Serve built React app
 const DIST = path.join(__dirname, '../client/dist');
-app.use(express.static(DIST));
-app.get('*', (req, res) => res.sendFile(path.join(DIST, 'index.html')));
+app.use(express.static(DIST, { etag: false, maxAge: '1y', immutable: true }));
+app.get('*', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.sendFile(path.join(DIST, 'index.html'));
+});
 
 app.listen(PORT, () => console.log(`[server] http://localhost:${PORT}`));
