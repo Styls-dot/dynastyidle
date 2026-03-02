@@ -3,7 +3,7 @@ module.exports = {
   'tempest-slash': {
     id:          'tempest-slash',
     name:        'Tempest Slash',
-    description: 'Hits [ALL] enemies for [100%] weapon damage minus [30%] of each target\'s defense. Costs [20] mana. Cooldown [10]s.',
+    description: 'Deals damage to [ALL] enemies simultaneously. Each target takes [ATK − DEF×0.3] damage — the exact same formula as a normal attack, but applied to every enemy in the group at once. Costs [20] mana · [10]s cooldown.',
     icon:        '🌀',
     cooldownMs:  10000,
     type:        'aoe',
@@ -12,7 +12,7 @@ module.exports = {
   'iron-body': {
     id:          'iron-body',
     name:        'Iron Body',
-    description: 'Restores [20] HP. Costs [15] mana. Cooldown [12]s.',
+    description: 'Instantly restores [20] HP. Does not deal damage. Costs [15] mana · [12]s cooldown.',
     icon:        '🛡',
     cooldownMs:  12000,
     type:        'heal',
@@ -22,7 +22,7 @@ module.exports = {
   'soul-sever': {
     id:          'soul-sever',
     name:        'Soul Sever',
-    description: 'Strikes the front enemy for [250%] weapon damage. Costs [25] mana. Cooldown [6]s.',
+    description: 'Focuses all qi into a single crushing blow against the front enemy, dealing [ATK×2.5 − DEF×0.3] damage — [2.5×] the strength of a normal attack. Costs [25] mana · [6]s cooldown.',
     icon:        '⚡',
     cooldownMs:  6000,
     type:        'single',
@@ -32,7 +32,7 @@ module.exports = {
   'five-element-palm': {
     id:          'five-element-palm',
     name:        'Five-Element Palm',
-    description: 'Hits [ALL] enemies for [100%] weapon damage, completely ignoring their defense. Costs [35] mana. Cooldown [18]s.',
+    description: 'Channels all five elements to strike [ALL] enemies for [ATK] damage each, completely ignoring their defense. Costs [35] mana · [18]s cooldown.',
     icon:        '☯',
     cooldownMs:  18000,
     type:        'aoe-pierce',
