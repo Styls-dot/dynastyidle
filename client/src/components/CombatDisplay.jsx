@@ -69,8 +69,11 @@ function EnemyCard({ enemy, killKey, lastKillXp, countClass }) {
 // ── CombatDisplay ─────────────────────────────────────────────────────────────
 
 export default function CombatDisplay({ player, enemies, lastKill, lastHit, recovering, recoverySecs }) {
-  const hp      = player?.hp ?? 100;
   const lvl     = player?.level ?? 1;
+  const mxHp    = player?.maxHp  ?? (100 + (lvl - 1) * 20);
+  const mxMana  = player?.maxMana ?? (100 + (lvl - 1) * 10);
+  const hp      = player?.hp   ?? mxHp;
+  const mana    = player?.mana ?? mxMana;
   const count   = enemies?.length ?? 0;
 
   const hitKey  = lastHit?.ts ?? 0;
@@ -101,10 +104,17 @@ export default function CombatDisplay({ player, enemies, lastKill, lastHit, reco
         <div className="cc-bars">
           <div className="cc-bar-row">
             <span className="cc-bar-label">HP</span>
-            <span className="cc-bar-val">{Math.round(hp)} / 100</span>
+            <span className="cc-bar-val">{Math.round(hp)} / {mxHp}</span>
           </div>
           <div className="cc-bar-track">
-            <div className="cc-bar-fill cc-hp-player" style={{ width: `${Math.max(0, hp)}%` }} />
+            <div className="cc-bar-fill cc-hp-player" style={{ width: `${Math.max(0, (hp / mxHp) * 100)}%` }} />
+          </div>
+          <div className="cc-bar-row" style={{ marginTop: 3 }}>
+            <span className="cc-bar-label">MP</span>
+            <span className="cc-bar-val" style={{ color: 'var(--mana)' }}>{Math.round(mana)} / {mxMana}</span>
+          </div>
+          <div className="cc-bar-track">
+            <div className="cc-bar-fill" style={{ width: `${Math.max(0, (mana / mxMana) * 100)}%`, background: 'var(--mana)' }} />
           </div>
         </div>
       </div>

@@ -107,14 +107,31 @@ function initDb() {
   safeAlter(`ALTER TABLE player ADD COLUMN hp_potion_threshold   INTEGER NOT NULL DEFAULT 30`);
   safeAlter(`ALTER TABLE player ADD COLUMN mana_potion_threshold INTEGER NOT NULL DEFAULT 30`);
   safeAlter(`ALTER TABLE player ADD COLUMN active_skill_ids      TEXT    NOT NULL DEFAULT '[]'`);
+  safeAlter(`ALTER TABLE player ADD COLUMN hp_version            INTEGER NOT NULL DEFAULT 0`);
+
+  // One-time migration: convert percentage HP/mana to absolute values
+  const unmigrated = db.prepare('SELECT id, level, hp, mana FROM player WHERE hp_version = 0').all();
+  if (unmigrated.length > 0) {
+    const upd = db.prepare('UPDATE player SET hp=?, mana=?, hp_version=1 WHERE id=?');
+    db.transaction(() => {
+      for (const p of unmigrated) {
+        upd.run(
+          Math.round((p.hp   / 100) * maxHp(p.level)),
+          Math.round((p.mana / 100) * maxMana(p.level)),
+          p.id
+        );
+      }
+    })();
+    console.log(`[db] migrated ${unmigrated.length} player(s) to absolute HP/mana`);
+  }
 
   const { c } = db.prepare('SELECT COUNT(*) as c FROM zones').get();
   if (c === 0) seedZones(db);
 }
 
-function xpToNextLevel(level) {
-  return level * 50;
-}
+function xpToNextLevel(level) { return level * 50; }
+function maxHp(level)         { return 100 + (level - 1) * 20; }
+function maxMana(level)       { return 100 + (level - 1) * 10; }
 
 function seedZones(db) {
   const zones = [
@@ -147,4 +164,4 @@ const POTION_MAX_STACK = 20;
 function getEnhanceCost(plus)   { return 10 + plus * plus * 3; }
 function getEnhanceChance(plus) { return Math.max(1, Math.round(100 * Math.pow(0.82, plus))); }
 
-module.exports = { getDb, initDb, xpToNextLevel, SHARD_VALUES, SELL_PRICES, HP_POTION_COST, MANA_POTION_COST, POTION_RESTORE, POTION_MAX_STACK, getEnhanceCost, getEnhanceChance };
+module.exports = { getDb, initDb, xpToNextLevel, maxHp, maxMana, SHARD_VALUES, SELL_PRICES, HP_POTION_COST, MANA_POTION_COST, POTION_RESTORE, POTION_MAX_STACK, getEnhanceCost, getEnhanceChance };

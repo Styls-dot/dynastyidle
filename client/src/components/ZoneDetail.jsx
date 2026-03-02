@@ -101,7 +101,8 @@ export default function ZoneDetail({ zone, player, monsters, selectedMonsterId, 
                   const cdMs = skillCooldowns[skill.id] ?? 0;
 
                   return (
-                    <div key={skill.id} className={`skill-row${isActive ? ' skill-row-active' : ''}`}>
+                    <div key={skill.id} className={`skill-row${isActive ? ' skill-row-active' : ''}`}
+                      style={isActive && cdMs > 0 ? { '--cd-pct': `${Math.round(cdMs / skill.cooldownMs * 100)}%` } : undefined}>
                       <div className="skill-row-main">
                         <span className="skill-row-icon">{skill.icon}</span>
                         <div className="skill-row-body">

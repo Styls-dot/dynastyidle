@@ -1,6 +1,6 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
-const { getDb, xpToNextLevel, SHARD_VALUES } = require('../db');
+const { getDb, xpToNextLevel, maxHp, maxMana, SHARD_VALUES } = require('../db');
 const ENEMIES    = require('../data/enemies');
 const MONSTERS   = require('../data/monsters');
 const { rollLoot } = require('../data/loot');
@@ -66,15 +66,16 @@ function ensurePlayer(db, playerId) {
 
 function getEquipmentBonuses(db, playerId) {
   const equipped = db.prepare('SELECT type,stats,equippedSlot,plus_level FROM player_inventory WHERE playerId=? AND equippedSlot IS NOT NULL').all(playerId);
-  let atkBonus = 0, defBonus = 0, xpBonusPct = 0;
+  let atkBonus = 0, defBonus = 0, xpBonusPct = 0, hpBonus = 0;
   for (const item of equipped) {
     const s  = JSON.parse(item.stats);
     const pl = item.plus_level || 0;
     if (item.equippedSlot === 'weapon')    atkBonus   += (s.atk     || 0) + pl * 3;
-    if (item.equippedSlot === 'armor')     defBonus   += (s.def     || 0) + pl * 2;
+    if (item.equippedSlot === 'armor')   { defBonus   += (s.def     || 0) + pl * 2;
+                                           hpBonus    += (s.hp      || 0) + pl * 5; }
     if (item.equippedSlot === 'accessory') xpBonusPct += (s.xpBonus || 0) + pl * 1;
   }
-  return { atkBonus, defBonus, xpBonusPct };
+  return { atkBonus, defBonus, xpBonusPct, hpBonus };
 }
 
 // ── routes ───────────────────────────────────────────────────────────────────
@@ -132,20 +133,22 @@ router.post('/:id/combat-tick', (req, res) => {
   const player = db.prepare('SELECT level,xp,hp,mana,gold,recoveryUntil,auto_salvage_rarities,active_skill_ids,hp_potion_count,mana_potion_count,hp_potion_threshold,mana_potion_threshold FROM player WHERE id=?').get(playerId);
   const now = Date.now();
 
+  // ── equipment bonuses (needed for maxHp which includes gear hp stat) ──
+  const { atkBonus, defBonus, xpBonusPct, hpBonus } = getEquipmentBonuses(db, playerId);
+  const maxHpVal   = maxHp(player.level) + hpBonus;
+  const maxManaVal = maxMana(player.level);
+
   // ── recovery check ──
   if (player.recoveryUntil > now) {
-    return res.json({ recovering: true, recoveryUntil: player.recoveryUntil, hp: 0, mana: player.mana ?? 100, playerLevel: player.level, playerXp: player.xp, xpToNextLevel: xpToNextLevel(player.level) });
+    return res.json({ recovering: true, recoveryUntil: player.recoveryUntil, hp: 0, mana: player.mana ?? maxManaVal, maxHp: maxHpVal, maxMana: maxManaVal, playerLevel: player.level, playerXp: player.xp, xpToNextLevel: xpToNextLevel(player.level) });
   }
 
   // ── auto-restore after recovery period ──
   let currentHp = player.hp;
   if (currentHp <= 0) {
-    currentHp = 100;
-    db.prepare('UPDATE player SET hp=100,recoveryUntil=0 WHERE id=?').run(playerId);
+    currentHp = maxHpVal;
+    db.prepare('UPDATE player SET hp=?,recoveryUntil=0 WHERE id=?').run(maxHpVal, playerId);
   }
-
-  // ── equipment bonuses ──
-  const { atkBonus, defBonus, xpBonusPct } = getEquipmentBonuses(db, playerId);
 
   // ── resolve or initialize combat state ──
   const targetKey = monsterId || 'hunt-all';
@@ -154,7 +157,7 @@ router.post('/:id/combat-tick', (req, res) => {
   if (!state || state.zoneId !== zone.id || state.targetKey !== targetKey || !state.queue.length || state.queueIdx >= state.queue.length) {
     const q = makeEnemyQueue(zone.id, monsterId);
     if (!q.length) {
-      return res.json({ hp: currentHp, mana: player.mana ?? 100, playerLevel: player.level, playerXp: player.xp, xpToNextLevel: xpToNextLevel(player.level), leveledUp: false, killThisTick: false, damagePct: 0, currentEnemy: null, queuedEnemies: [] });
+      return res.json({ hp: currentHp, mana: player.mana ?? maxManaVal, maxHp: maxHpVal, maxMana: maxManaVal, playerLevel: player.level, playerXp: player.xp, xpToNextLevel: xpToNextLevel(player.level), leveledUp: false, killThisTick: false, damagePct: 0, currentEnemy: null, queuedEnemies: [] });
     }
     state = { zoneId: zone.id, targetKey, queue: q, queueIdx: 0 };
     playerCombat.set(playerId, state);
@@ -172,13 +175,13 @@ router.post('/:id/combat-tick', (req, res) => {
   // ── ALL active enemies attack player ──
   const defReduction  = Math.min(0.75, defBonus * 0.02);
   const damagePct     = activeEnemies.reduce((sum, e) => sum + Math.max(0, e.atk * 0.4 * (1 - defReduction)), 0);
-  const regenPct      = Math.max(0.3, Math.min(8, (player.level - frontEnemy.level + 3) * 0.6));
-  let newHp           = Math.max(0, Math.min(100, currentHp - damagePct + regenPct));
+  const regenPct      = Math.max(0.3, Math.min(maxHpVal * 0.04, (player.level - frontEnemy.level + 3) * 0.6));
+  let newHp           = Math.max(0, Math.min(maxHpVal, currentHp - damagePct + regenPct));
 
   // ── auto HP potion (fires before death check) ──
   let hpPotionUsed = false;
-  if (newHp < (player.hp_potion_threshold ?? 30) && (player.hp_potion_count ?? 0) > 0) {
-    newHp = Math.min(100, newHp + 50);
+  if (newHp < (player.hp_potion_threshold ?? 30) / 100 * maxHpVal && (player.hp_potion_count ?? 0) > 0) {
+    newHp = Math.min(maxHpVal, newHp + Math.round(maxHpVal * 0.3));
     db.prepare('UPDATE player SET hp_potion_count = hp_potion_count - 1 WHERE id=?').run(playerId);
     hpPotionUsed = true;
   }
@@ -188,15 +191,15 @@ router.post('/:id/combat-tick', (req, res) => {
     const recoveryUntil = now + RECOVERY_MS;
     db.prepare('UPDATE player SET hp=0,recoveryUntil=? WHERE id=?').run(recoveryUntil, playerId);
     playerCombat.delete(playerId);
-    return res.json({ died: true, recoveryUntil, hp: 0, mana: player.mana ?? 100, playerLevel: player.level, playerXp: player.xp, xpToNextLevel: xpToNextLevel(player.level) });
+    return res.json({ died: true, recoveryUntil, hp: 0, mana: player.mana ?? maxManaVal, maxHp: maxHpVal, maxMana: maxManaVal, playerLevel: player.level, playerXp: player.xp, xpToNextLevel: xpToNextLevel(player.level) });
   }
 
   // ── mana regen + auto mana potion ──
-  const currentMana = player.mana ?? 100;
-  let newMana = Math.min(100, currentMana + MANA_REGEN);
+  const currentMana = player.mana ?? maxManaVal;
+  let newMana = Math.min(maxManaVal, currentMana + MANA_REGEN);
   let manaPotionUsed = false;
-  if (newMana < (player.mana_potion_threshold ?? 30) && (player.mana_potion_count ?? 0) > 0) {
-    newMana = Math.min(100, newMana + 50);
+  if (newMana < (player.mana_potion_threshold ?? 30) / 100 * maxManaVal && (player.mana_potion_count ?? 0) > 0) {
+    newMana = Math.min(maxManaVal, newMana + Math.round(maxManaVal * 0.3));
     db.prepare('UPDATE player SET mana_potion_count = mana_potion_count - 1 WHERE id=?').run(playerId);
     manaPotionUsed = true;
   }
@@ -214,7 +217,7 @@ router.post('/:id/combat-tick', (req, res) => {
     state,
     now,
     playerAtk,
-    newHp,
+    newHp: (newHp / maxHpVal) * 100,  // skill rules use % thresholds
     currentMana: newMana,
     cooldownMap: playerSkillCooldown,
     playerId,
@@ -344,7 +347,7 @@ router.post('/:id/combat-tick', (req, res) => {
     killThisTick, killedEnemyName, xpGained,
     enemies,
     playerLevel: level, playerXp: xp, xpToNextLevel: xpToNextLevel(level), leveledUp,
-    hp: finalHp, mana: finalMana, damagePct: Math.round(damagePct * 10) / 10,
+    hp: finalHp, mana: finalMana, maxHp: maxHpVal, maxMana: maxManaVal, damagePct: Math.round(damagePct * 10) / 10,
     skillsFired: firedSkills,
     skillCooldowns,
     hpPotionUsed, manaPotionUsed,

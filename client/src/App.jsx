@@ -203,7 +203,7 @@ export default function App() {
         const tick = await api.combatTick(zoneId, selectedMonsterIdRef.current);
 
         // HP / recovery state
-        setPlayer(prev => prev ? { ...prev, level: tick.playerLevel, xp: tick.playerXp, xpToNextLevel: tick.xpToNextLevel, hp: tick.hp ?? prev.hp, mana: tick.mana ?? prev.mana } : prev);
+        setPlayer(prev => prev ? { ...prev, level: tick.playerLevel, xp: tick.playerXp, xpToNextLevel: tick.xpToNextLevel, hp: tick.hp ?? prev.hp, mana: tick.mana ?? prev.mana, maxHp: tick.maxHp ?? prev.maxHp, maxMana: tick.maxMana ?? prev.maxMana } : prev);
         if (tick.hpPotionUsed)   setHpPotionCount(p => Math.max(0, p - 1));
         if (tick.manaPotionUsed) setManaPotionCount(p => Math.max(0, p - 1));
         if (tick.skillCooldowns) setSkillCooldowns(tick.skillCooldowns);

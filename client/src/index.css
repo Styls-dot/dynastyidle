@@ -106,7 +106,12 @@ body {
   align-items: center;
   gap: 16px;
   flex-shrink: 0;
-  height: 34px;
+  height: 44px;
+}
+.pb-vitals {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
 .pb-level {
@@ -1550,11 +1555,12 @@ body {
 }
 
 .skill-row {
-  background: var(--panel);
+  background: linear-gradient(to right, var(--cd-fill, var(--panel)) var(--cd-pct, 0%), var(--panel) var(--cd-pct, 0%));
   border: 1px solid var(--border-soft);
   border-radius: 3px;
   overflow: hidden;
-  transition: border-color 0.12s;
+  transition: border-color 0.12s, background 0.15s linear;
+  --cd-fill: rgba(255,255,255,0.07);
 }
 
 .skill-row-active {
@@ -2089,6 +2095,7 @@ body {
 }
 .shop-buy-btn:hover:not(:disabled) { border-color: var(--gold); }
 .shop-buy-btn:disabled { opacity: .35; cursor: default; }
+.shop-qty-input { width: 52px; background: var(--panel); border: 1px solid var(--border-soft); color: var(--text); font-family: inherit; font-size: 12px; padding: 4px 6px; border-radius: 3px; text-align: center; }
 .shop-sell-empty {
   font-size: 11px;
   color: var(--text-muted);

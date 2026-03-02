@@ -14,6 +14,8 @@ export default function ShopPanel({
 }) {
   const [busy, setBusy] = useState(false);
   const [msg,  setMsg]  = useState(null);
+  const [hpQty,   setHpQty]   = useState(1);
+  const [manaQty, setManaQty] = useState(1);
 
   function flash(text, ok = true) {
     setMsg({ text, ok });
@@ -70,10 +72,9 @@ export default function ShopPanel({
             <div className="shop-potion-desc">Restores 50 HP instantly when consumed</div>
             <div className="shop-potion-stock">{hpPotionCount} in bag</div>
             <div className="shop-potion-actions">
-              <button className="shop-buy-btn" disabled={busy || gold < HP_POTION_COST}
-                onClick={() => handleBuy('hp', 1)}>×1 — {HP_POTION_COST}⬡</button>
-              <button className="shop-buy-btn" disabled={busy || gold < HP_POTION_COST*5}
-                onClick={() => handleBuy('hp', 5)}>×5 — {HP_POTION_COST*5}⬡</button>
+              <input type="number" min="1" className="shop-qty-input" value={hpQty} onChange={e => setHpQty(Math.max(1, +e.target.value))} />
+              <button className="shop-buy-btn" disabled={busy || gold < HP_POTION_COST * hpQty}
+                onClick={() => handleBuy('hp', hpQty)}>Buy — {HP_POTION_COST * hpQty}⬡</button>
             </div>
           </div>
 
@@ -82,10 +83,9 @@ export default function ShopPanel({
             <div className="shop-potion-desc">Restores 50 mana instantly when consumed</div>
             <div className="shop-potion-stock">{manaPotionCount} in bag</div>
             <div className="shop-potion-actions">
-              <button className="shop-buy-btn" disabled={busy || gold < MANA_POTION_COST}
-                onClick={() => handleBuy('mana', 1)}>×1 — {MANA_POTION_COST}⬡</button>
-              <button className="shop-buy-btn" disabled={busy || gold < MANA_POTION_COST*5}
-                onClick={() => handleBuy('mana', 5)}>×5 — {MANA_POTION_COST*5}⬡</button>
+              <input type="number" min="1" className="shop-qty-input" value={manaQty} onChange={e => setManaQty(Math.max(1, +e.target.value))} />
+              <button className="shop-buy-btn" disabled={busy || gold < MANA_POTION_COST * manaQty}
+                onClick={() => handleBuy('mana', manaQty)}>Buy — {MANA_POTION_COST * manaQty}⬡</button>
             </div>
           </div>
 
