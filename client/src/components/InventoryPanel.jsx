@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { api } from '../api';
 
 const RARITY_COLOR = {
@@ -34,7 +34,7 @@ function statLine(stats, plusLevel = 0) {
 
 function SlotMachine({ targetPlus }) {
   const [n, setN] = useState(0);
-  useEffect(() => {
+  React.useEffect(() => {
     const t = setInterval(() => setN(v => (v + 1) % 30), 55);
     return () => clearInterval(t);
   }, []);
@@ -46,9 +46,43 @@ function SlotMachine({ targetPlus }) {
   );
 }
 
+// ── Auto-enhance controls ─────────────────────────────────────────────────────
+
+function AutoEnhanceRow({ itemId, plus, spiritShards, autoState, onAutoTargetChange, onAutoStart, onAutoStop }) {
+  const { running, progress, target } = autoState;
+  const tgt = target ?? plus + 5;
+  const cost = getEnhanceCost(plus);
+
+  if (running) {
+    return (
+      <div className="auto-enh-row">
+        <span className="auto-enh-running">Auto +{progress} → +{target}</span>
+        <button className="btn-item btn-auto-stop" onClick={() => onAutoStop(itemId)}>Stop</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="auto-enh-row">
+      <span className="auto-enh-label">Auto →</span>
+      <input
+        type="number" min={plus + 1} max={99}
+        className="auto-enh-input"
+        value={tgt}
+        onChange={e => onAutoTargetChange(itemId, Math.max(plus + 1, +e.target.value))}
+      />
+      <button
+        className="btn-item btn-auto-enh"
+        disabled={spiritShards < cost}
+        onClick={() => onAutoStart(itemId, tgt)}
+      >Start</button>
+    </div>
+  );
+}
+
 // ── Equipment slot (top section) ─────────────────────────────────────────────
 
-function EquipSlot({ label, item, onUnequip, onEnhance, enhanceState, spiritShards }) {
+function EquipSlot({ label, item, onUnequip, onEnhance, enhanceState, spiritShards, autoState, onAutoTargetChange, onAutoStart, onAutoStop }) {
   const col       = item ? (RARITY_COLOR[item.rarity] || RARITY_COLOR.common) : 'var(--border)';
   const plus      = item?.plus_level || 0;
   const cost      = getEnhanceCost(plus);
@@ -56,6 +90,7 @@ function EquipSlot({ label, item, onUnequip, onEnhance, enhanceState, spiritShar
   const anim      = item ? (enhanceState[item.id]?.anim ?? null) : null;
   const feedback  = item ? (enhanceState[item.id]?.feedback ?? null) : null;
   const isRolling = anim === 'rolling';
+  const itemAutoState = item ? (autoState[item.id] ?? {}) : {};
 
   return (
     <div className={`equip-slot${anim ? ' enh-' + anim : ''}`} style={{ borderTopColor: col }}>
@@ -75,7 +110,7 @@ function EquipSlot({ label, item, onUnequip, onEnhance, enhanceState, spiritShar
               <span className={`enhance-result ${feedback.success ? 'success' : 'fail'}`}>
                 {feedback.success ? `✓ +${feedback.newPlus}` : `✗ Reset to +0`}
               </span>
-            ) : (
+            ) : !itemAutoState.running && (
               <button
                 className="btn-item btn-enhance"
                 onClick={() => onEnhance(item.id)}
@@ -86,6 +121,15 @@ function EquipSlot({ label, item, onUnequip, onEnhance, enhanceState, spiritShar
               </button>
             )}
           </div>
+          {!isRolling && !feedback && (
+            <AutoEnhanceRow
+              itemId={item.id} plus={plus} spiritShards={spiritShards}
+              autoState={itemAutoState}
+              onAutoTargetChange={onAutoTargetChange}
+              onAutoStart={onAutoStart}
+              onAutoStop={onAutoStop}
+            />
+          )}
         </div>
       ) : (
         <div className="equip-slot-empty">— empty —</div>
@@ -96,7 +140,7 @@ function EquipSlot({ label, item, onUnequip, onEnhance, enhanceState, spiritShar
 
 // ── Bag item card ─────────────────────────────────────────────────────────────
 
-function ItemCard({ item, onEquip, onDiscard, onSalvage, onEnhance, enhanceState, spiritShards }) {
+function ItemCard({ item, onEquip, onDiscard, onSalvage, onEnhance, enhanceState, spiritShards, autoState, onAutoTargetChange, onAutoStart, onAutoStop }) {
   const col      = RARITY_COLOR[item.rarity] || RARITY_COLOR.common;
   const plus     = item.plus_level || 0;
   const cost     = getEnhanceCost(plus);
@@ -105,6 +149,7 @@ function ItemCard({ item, onEquip, onDiscard, onSalvage, onEnhance, enhanceState
   const state    = enhanceState[item.id] ?? {};
   const { anim, feedback } = state;
   const isRolling = anim === 'rolling';
+  const itemAutoState = autoState[item.id] ?? {};
 
   return (
     <div className={`item-card${anim ? ' enh-' + anim : ''}`} style={{ borderTopColor: col }}>
@@ -127,19 +172,30 @@ function ItemCard({ item, onEquip, onDiscard, onSalvage, onEnhance, enhanceState
         </div>
       ) : (
         <>
-          <div className="item-card-actions">
-            <button className="btn-item btn-equip"  onClick={() => onEquip(item)}>Equip</button>
-            <button className="btn-item btn-salvage" onClick={() => onSalvage(item.id)} title={`Salvage for ${shardVal} shards`}>+{shardVal}◆</button>
-            <button className="btn-item btn-discard" onClick={() => onDiscard(item.id)} title="Discard">✕</button>
-          </div>
-          <button
-            className="btn-item btn-enhance full-width"
-            onClick={() => onEnhance(item.id)}
-            disabled={spiritShards < cost}
-            title={`${chance}% · fail resets to +0`}
-          >
-            +{plus}→+{plus + 1} · {cost}◆ · {chance}%
-          </button>
+          {!itemAutoState.running && (
+            <>
+              <div className="item-card-actions">
+                <button className="btn-item btn-equip"  onClick={() => onEquip(item)}>Equip</button>
+                <button className="btn-item btn-salvage" onClick={() => onSalvage(item.id)} title={`Salvage for ${shardVal} shards`}>+{shardVal}◆</button>
+                <button className="btn-item btn-discard" onClick={() => onDiscard(item.id)} title="Discard">✕</button>
+              </div>
+              <button
+                className="btn-item btn-enhance full-width"
+                onClick={() => onEnhance(item.id)}
+                disabled={spiritShards < cost}
+                title={`${chance}% · fail resets to +0`}
+              >
+                +{plus}→+{plus + 1} · {cost}◆ · {chance}%
+              </button>
+            </>
+          )}
+          <AutoEnhanceRow
+            itemId={item.id} plus={plus} spiritShards={spiritShards}
+            autoState={itemAutoState}
+            onAutoTargetChange={onAutoTargetChange}
+            onAutoStart={onAutoStart}
+            onAutoStop={onAutoStop}
+          />
         </>
       )}
     </div>
@@ -154,8 +210,10 @@ export default function InventoryPanel({
   autoSalvageRarities, setAutoSalvageRarities,
 }) {
   const [busy,         setBusy]         = useState(false);
-  // enhanceState: { [itemId]: { anim: 'rolling'|'success'|'fail', feedback: {success,newPlus} } }
   const [enhanceState, setEnhanceState] = useState({});
+  // autoState: { [itemId]: { running, progress, target } }
+  const [autoState,    setAutoState]    = useState({});
+  const autoRef = useRef({});  // { [itemId]: bool } — avoids stale-closure stop issues
 
   const equipped = {
     weapon:    inventory.find(i => i.equippedSlot === 'weapon')    || null,
@@ -166,9 +224,16 @@ export default function InventoryPanel({
 
   // ── helpers ─────────────────────────────────────────────────────────────────
 
-  function setItemAnim(itemId, anim)     { setEnhanceState(p => ({ ...p, [itemId]: { ...p[itemId], anim } })); }
-  function setItemFeedback(itemId, fb)   { setEnhanceState(p => ({ ...p, [itemId]: { ...p[itemId], feedback: fb } })); }
-  function clearItemState(itemId)        { setEnhanceState(p => { const n = { ...p }; delete n[itemId]; return n; }); }
+  function setItemAnim(itemId, anim)   { setEnhanceState(p => ({ ...p, [itemId]: { ...p[itemId], anim } })); }
+  function setItemFeedback(itemId, fb) { setEnhanceState(p => ({ ...p, [itemId]: { ...p[itemId], feedback: fb } })); }
+  function clearItemState(itemId)      { setEnhanceState(p => { const n = { ...p }; delete n[itemId]; return n; }); }
+
+  function setAutoItemState(itemId, patch) {
+    setAutoState(p => ({ ...p, [itemId]: { ...(p[itemId] ?? {}), ...patch } }));
+  }
+  function clearAutoItem(itemId) {
+    setAutoState(p => { const n = { ...p }; delete n[itemId]; return n; });
+  }
 
   // ── actions ──────────────────────────────────────────────────────────────────
 
@@ -213,22 +278,62 @@ export default function InventoryPanel({
     setBusy(true);
     setItemAnim(itemId, 'rolling');
     try {
-      // Fire API call + enforce minimum animation duration in parallel
       const [res] = await Promise.all([
         api.enhanceItem(itemId),
         new Promise(r => setTimeout(r, 950)),
       ]);
       setSpiritShards(res.spiritShards);
-      const resultAnim = res.success ? 'success' : 'fail';
-      setItemAnim(itemId, resultAnim);
+      setItemAnim(itemId, res.success ? 'success' : 'fail');
       setItemFeedback(itemId, { success: res.success, newPlus: res.newPlusLevel });
       await onRefresh();
-      // Clear result after 2.5s
       setTimeout(() => clearItemState(itemId), 2500);
     } catch (e) {
       console.error(e);
       clearItemState(itemId);
     } finally { setBusy(false); }
+  }
+
+  // ── auto-enhance ─────────────────────────────────────────────────────────────
+
+  function handleAutoTargetChange(itemId, value) {
+    setAutoItemState(itemId, { target: value });
+  }
+
+  async function handleAutoStart(itemId, targetPlus) {
+    const item = [...Object.values(equipped).filter(Boolean), ...bag].find(i => i.id === itemId);
+    if (!item) return;
+
+    autoRef.current[itemId] = true;
+    let curPlus   = item.plus_level || 0;
+    let curShards = spiritShards;
+
+    setAutoItemState(itemId, { running: true, progress: curPlus, target: targetPlus });
+
+    while (autoRef.current[itemId] && curPlus < targetPlus) {
+      const cost = getEnhanceCost(curPlus);
+      if (curShards < cost) break;
+
+      try {
+        const res = await api.enhanceItem(itemId);
+        curShards = res.spiritShards;
+        setSpiritShards(res.spiritShards);
+        curPlus = res.success ? res.newPlusLevel : 0;
+        setAutoItemState(itemId, { progress: curPlus });
+      } catch {
+        break;
+      }
+
+      // Brief pause so UI stays responsive
+      await new Promise(r => setTimeout(r, 200));
+    }
+
+    autoRef.current[itemId] = false;
+    clearAutoItem(itemId);
+    await onRefresh();
+  }
+
+  function handleAutoStop(itemId) {
+    autoRef.current[itemId] = false;
   }
 
   async function toggleAutoSalvage(rarity) {
@@ -287,6 +392,10 @@ export default function InventoryPanel({
                 onEnhance={handleEnhance}
                 enhanceState={enhanceState}
                 spiritShards={spiritShards}
+                autoState={autoState}
+                onAutoTargetChange={handleAutoTargetChange}
+                onAutoStart={handleAutoStart}
+                onAutoStop={handleAutoStop}
               />
             ))}
           </div>
@@ -309,6 +418,10 @@ export default function InventoryPanel({
                   onEnhance={handleEnhance}
                   enhanceState={enhanceState}
                   spiritShards={spiritShards}
+                  autoState={autoState}
+                  onAutoTargetChange={handleAutoTargetChange}
+                  onAutoStart={handleAutoStart}
+                  onAutoStop={handleAutoStop}
                 />
               ))}
             </div>

@@ -971,6 +971,55 @@ body {
 .btn-enhance:disabled { opacity: 0.35; cursor: not-allowed; }
 .btn-enhance.full-width { width: 100%; margin-top: 6px; text-align: center; justify-content: center; }
 
+/* Auto-enhance row */
+.auto-enh-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+.auto-enh-label {
+  font-family: 'Cinzel', serif;
+  font-size: 8px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.auto-enh-input {
+  width: 44px;
+  background: var(--panel);
+  border: 1px solid var(--border-soft);
+  color: var(--text);
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  text-align: center;
+}
+.auto-enh-input:focus { outline: none; border-color: var(--jade); }
+.auto-enh-running {
+  font-family: 'Cinzel', serif;
+  font-size: 8px;
+  color: var(--jade);
+  flex: 1;
+  white-space: nowrap;
+}
+.btn-auto-enh {
+  color: var(--jade);
+  border-color: rgba(61,170,138,.4);
+  font-size: 8px;
+  padding: 3px 7px;
+}
+.btn-auto-enh:hover:not(:disabled) { background: rgba(61,170,138,.1); }
+.btn-auto-enh:disabled { opacity: 0.35; cursor: not-allowed; }
+.btn-auto-stop {
+  color: var(--accent);
+  border-color: rgba(179,58,58,.4);
+  font-size: 8px;
+  padding: 3px 7px;
+}
+.btn-auto-stop:hover { background: rgba(179,58,58,.1); }
+
 /* +N badge */
 .item-plus-badge {
   font-family: 'Cinzel', serif;
